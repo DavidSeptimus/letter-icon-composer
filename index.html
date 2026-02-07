@@ -497,7 +497,7 @@
 <div class="header">
   <div>
     <h1>Letter Icon Composer</h1>
-    <p class="subtitle">Generate composite letter-on-shape SVG icons for IntelliJ structure &amp; completion views</p>
+    <p class="subtitle">Custom IntelliJ-style letter icons for plugin developers</p>
   </div>
   <div class="socials">
     <button class="style-toggle" id="themeToggle" title="Toggle site theme" style="width:auto;padding:0 8px;font-size:11px;gap:4px">
@@ -613,7 +613,7 @@
   <!-- Right Panel -->
   <div>
     <div class="panel">
-      <details class="section">
+      <details class="section" open>
         <summary class="section-title">Light Theme Colors</summary>
         <div class="color-row">
           <div>
@@ -633,7 +633,7 @@
         </div>
       </details>
 
-      <details class="section">
+      <details class="section" open>
         <summary class="section-title">Dark Theme Colors</summary>
         <div class="color-row">
           <div>
@@ -685,7 +685,7 @@
         </div>
       </details>
 
-      <details class="section">
+      <details class="section" open>
         <summary class="section-title">Font</summary>
         <select id="fontSelect">
           <option value="open-sans" selected>Open Sans (JetBrains recommended)</option>
@@ -714,7 +714,7 @@
         </div>
       </details>
 
-      <details class="section">
+      <details class="section" open>
         <summary class="section-title">File Name</summary>
         <input type="text" id="fileName" value="icon" placeholder="e.g. myNode">
         <div class="font-info" style="margin-top:4px">
@@ -1087,6 +1087,7 @@ async function loadGoogleFont() {
   const btn = document.getElementById('googleFontLoad');
 
   if (!name.trim()) { status.textContent = 'Enter a font name.'; return; }
+  currentFontKey = 'google-fonts';
 
   const effectiveWeight = styles.bold ? '700' : weight;
   const fontStyle = styles.italic ? 'italic' : 'normal';
