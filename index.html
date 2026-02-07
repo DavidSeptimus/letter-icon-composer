@@ -891,6 +891,7 @@ import {
   getFontUrl,
   getGoogleFontUrl,
   calibrateFontSize as calibrateFontSizeCore,
+  boundFontSizeToShape as boundFontSizeToShapeCore,
   generateSVG as generateSVGCore,
 } from './core.js';
 
@@ -957,8 +958,13 @@ function calibrateFontSize() {
   const letter = document.getElementById('letter').value;
   const targetHeight = SHAPES[currentShape]?.targetHeight ?? 7.0;
   const calibrated = calibrateFontSizeCore(currentFont, letter, targetHeight);
-  document.getElementById('fontSize').value = calibrated;
-  document.getElementById('fontSizeVal').textContent = calibrated.toFixed(1);
+  const sw = parseFloat(document.getElementById('strokeWidth').value);
+  const xOff = parseFloat(document.getElementById('xOffset').value);
+  const yOff = parseFloat(document.getElementById('yOffset').value);
+  const sc = parseFloat(document.getElementById('shapeScale').value);
+  const bounded = boundFontSizeToShapeCore(currentFont, letter, calibrated, currentShape, sw, xOff, yOff, sc);
+  document.getElementById('fontSize').value = bounded;
+  document.getElementById('fontSizeVal').textContent = bounded.toFixed(1);
 }
 
 function saveFontSetting() {
@@ -1436,13 +1442,13 @@ document.getElementById('resetSliders').addEventListener('click', (e) => {
   const defaultScale = SHAPES[currentShape].defaultScale ?? 1.0;
   document.getElementById('shapeScale').value = defaultScale;
   document.getElementById('shapeScaleVal').textContent = defaultScale.toFixed(2);
-  calibrateFontSize();
   document.getElementById('xOffset').value = 0;
   document.getElementById('xOffsetVal').textContent = '0.0';
   document.getElementById('yOffset').value = 0;
   document.getElementById('yOffsetVal').textContent = '0.0';
   document.getElementById('strokeWidth').value = 1;
   document.getElementById('strokeWidthVal').textContent = '1.0';
+  calibrateFontSize();
   render();
 });
 

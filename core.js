@@ -187,6 +187,125 @@ export function calibrateFontSize(font, letter = 'E', targetHeight = 7.0) {
   return Math.round((targetHeight / heightAt100) * 100 * 10) / 10;
 }
 
+// ── Content Fit Scaling (internal) ───────────────────────────────────
+/**
+ * Computes a scale factor (0..1] so that a text bounding box of the given
+ * width/height fits inside the usable interior of a shape with 1px padding
+ * from the inner stroke edge.
+ * @param {number} textW - Text bounding box width
+ * @param {number} textH - Text bounding box height
+ * @param {string} shapeName - Shape key (see SHAPES)
+ * @param {number} strokeWidth - Shape stroke width
+ * @param {number} xOffset - User horizontal offset
+ * @param {number} yOffset - User vertical offset
+ * @param {number} shapeScale - Shape scale factor
+ * @returns {number} Scale factor to multiply fontSize by (clamped to 1)
+ */
+function contentFitScale(textW, textH, shapeName, strokeWidth, xOffset, yOffset, shapeScale) {
+  const pad = 1;
+  const sc = shapeScale;
+  const sw = strokeWidth;
+  const shapeDef = SHAPES[shapeName];
+  if (!shapeDef) return 1;
+
+  const c = (shapeDef.viewBoxSize ?? 16) / 2;
+  // Dashed shapes use effectiveSW=1 regardless of strokeWidth
+  const isDashed = shapeName === 'dashed-circle' || shapeName === 'dashed-rect';
+  const esw = isDashed ? 1 : sw;
+
+  const halfW = textW / 2;
+  const halfH = textH / 2;
+
+  let scale = 1;
+
+  if (shapeName === 'circle' || shapeName === 'dashed-circle') {
+    // Circle inscribed constraint: text diagonal/2 <= r
+    const r = (c - 1 - esw) * sc - pad - Math.sqrt(xOffset * xOffset + yOffset * yOffset);
+    if (r > 0) {
+      const diag = Math.sqrt(halfW * halfW + halfH * halfH);
+      if (diag > r) scale = r / diag;
+    }
+  } else if (shapeName === 'diamond' || shapeName === 'rounded-diamond') {
+    // Diamond (L1 norm): halfW + halfH <= d
+    const d = (c - 1 - esw) * sc - pad - Math.abs(xOffset) - Math.abs(yOffset);
+    if (d > 0) {
+      const l1 = halfW + halfH;
+      if (l1 > d) scale = d / l1;
+    }
+  } else if (shapeName === 'shield') {
+    const shW = (5.5 - esw / 2) * sc - pad - Math.abs(xOffset);
+    const shH = (4.17 - esw / 2) * sc - pad - Math.abs(yOffset);
+    if (shW > 0 && shH > 0) {
+      const sx = halfW > shW ? shW / halfW : 1;
+      const sy = halfH > shH ? shH / halfH : 1;
+      scale = Math.min(sx, sy);
+    }
+  } else if (shapeName === 'hexagon') {
+    const hW = (5.0 - esw / 2) * sc - pad - Math.abs(xOffset);
+    const hH = (5.5 - esw / 2) * sc - pad - Math.abs(yOffset);
+    if (hW > 0 && hH > 0) {
+      const sx = halfW > hW ? hW / halfW : 1;
+      const sy = halfH > hH ? hH / halfH : 1;
+      scale = Math.min(sx, sy);
+    }
+  } else if (shapeName === 'document') {
+    const dW = (4.25 - esw / 2) * sc - pad - Math.abs(xOffset);
+    const dH = (3.75 - esw / 2) * sc - pad - Math.abs(yOffset);
+    if (dW > 0 && dH > 0) {
+      const sx = halfW > dW ? dW / halfW : 1;
+      const sy = halfH > dH ? dH / halfH : 1;
+      scale = Math.min(sx, sy);
+    }
+  } else if (shapeName === 'composite') {
+    const cW = (4.5 - esw / 2) * sc - pad - Math.abs(xOffset);
+    const cH = (4.5 - esw / 2) * sc - pad - Math.abs(yOffset);
+    if (cW > 0 && cH > 0) {
+      const sx = halfW > cW ? cW / halfW : 1;
+      const sy = halfH > cH ? cH / halfH : 1;
+      scale = Math.min(sx, sy);
+    }
+  } else {
+    // roundrect, dashed-rect — rectangle constraint
+    const halfExtentW = (c - 1.5 - esw) * sc - pad - Math.abs(xOffset);
+    const halfExtentH = (c - 1.5 - esw) * sc - pad - Math.abs(yOffset);
+    if (halfExtentW > 0 && halfExtentH > 0) {
+      const sx = halfW > halfExtentW ? halfExtentW / halfW : 1;
+      const sy = halfH > halfExtentH ? halfExtentH / halfH : 1;
+      scale = Math.min(sx, sy);
+    }
+  }
+
+  return Math.min(scale, 1);
+}
+
+// ── Bound Font Size to Shape ─────────────────────────────────────────
+/**
+ * For multi-character text, reduces the calibrated font size so the rendered
+ * text fits within the shape interior.  Single-character text is returned
+ * unchanged (the cap-height calibration already handles it).
+ * @param {object} font - An opentype.js Font object
+ * @param {string} letter - The letter(s) to render
+ * @param {number} calibratedSize - Font size from calibrateFontSize()
+ * @param {string} shapeName - Shape key
+ * @param {number} strokeWidth - Shape stroke width
+ * @param {number} xOffset - User horizontal offset
+ * @param {number} yOffset - User vertical offset
+ * @param {number} shapeScale - Shape scale factor
+ * @returns {number} Bounded font size (rounded to 1 decimal)
+ */
+export function boundFontSizeToShape(font, letter, calibratedSize, shapeName, strokeWidth, xOffset, yOffset, shapeScale) {
+  if (!font || !letter || letter.length <= 1) return calibratedSize;
+
+  const path = font.getPath(letter, 0, 0, calibratedSize);
+  const bb = path.getBoundingBox();
+  const w = bb.x2 - bb.x1;
+  const h = bb.y2 - bb.y1;
+  if (w <= 0 && h <= 0) return calibratedSize;
+
+  const scale = contentFitScale(w, h, shapeName, strokeWidth, xOffset, yOffset, shapeScale);
+  return Math.round(calibratedSize * scale * 10) / 10;
+}
+
 // ── Letter Path Generation ───────────────────────────────────────────
 /**
  * Generates an SVG <path> element for a letter centered in the viewBox.
@@ -279,7 +398,15 @@ export function generateSVG({
   const center = viewBoxSize / 2;
 
   const targetHeight = shapeDef.targetHeight ?? 7.0;
-  const size = fontSize ?? (font ? calibrateFontSize(font, letter, targetHeight) : targetHeight);
+  let size;
+  if (fontSize != null) {
+    size = fontSize;
+  } else if (font) {
+    const calibrated = calibrateFontSize(font, letter, targetHeight);
+    size = boundFontSizeToShape(font, letter, calibrated, shape, strokeWidth, xOffset, yOffset, scale);
+  } else {
+    size = targetHeight;
+  }
 
   // Generate shape at its native center (coordinates sized for 1px border)
   let shapeMarkup = shapeDef.generate(fill, stroke, strokeWidth, nativeCenter);
