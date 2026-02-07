@@ -308,11 +308,12 @@
     left: 16px;
     width: 128px;
     height: 128px;
+    background-color: #ffffff;
     background-image:
-      linear-gradient(45deg, rgba(128,128,128,0.15) 25%, transparent 25%),
-      linear-gradient(-45deg, rgba(128,128,128,0.15) 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, rgba(128,128,128,0.15) 75%),
-      linear-gradient(-45deg, transparent 75%, rgba(128,128,128,0.15) 75%);
+      linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+      linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+      linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
     background-size: calc(var(--cell) * 2) calc(var(--cell) * 2);
     background-position: 0 0, 0 var(--cell), var(--cell) calc(-1 * var(--cell)), calc(-1 * var(--cell)) 0;
     pointer-events: none;
@@ -496,6 +497,61 @@
     font-family: monospace;
   }
 
+  .badge-drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 14px 10px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    margin-top: 8px;
+    outline: none;
+    line-height: 1.5;
+  }
+  .badge-drop-zone:hover {
+    border-color: var(--accent);
+  }
+  .badge-drop-zone:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(53,116,240,0.25);
+  }
+  .badge-drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(53,116,240,0.08);
+  }
+  .badge-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+  }
+  .badge-preview svg { flex-shrink: 0; }
+  .badge-preview-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .badge-clear-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .badge-clear-btn:hover { color: var(--error); }
+
   .footer {
     max-width: 1400px;
     border-top: 1px solid var(--surface2);
@@ -623,9 +679,35 @@
       </details>
 
       <details class="section" open>
-        <summary class="section-title">Modifier</summary>
-        <div class="shape-grid" id="modifierGrid"></div>
-        <div id="modifierTuning" style="display:none">
+        <summary class="section-title">Badge</summary>
+        <div id="badgeDropZone" class="badge-drop-zone" tabindex="0">
+          Drop, paste, or <a href="#" id="badgeBrowseLink" style="color:var(--accent);text-decoration:none">browse</a> an SVG file
+        </div>
+        <input type="file" id="badgeFileInput" accept=".svg" style="display:none">
+        <div id="badgePreview" class="badge-preview" style="display:none">
+          <div id="badgePreviewThumb" style="width:24px;height:24px"></div>
+          <span class="badge-preview-name" id="badgePreviewName"></span>
+          <button class="badge-clear-btn" id="badgeClearBtn" title="Remove">&times;</button>
+        </div>
+        <div id="badgeTuning" style="display:none">
+          <div style="display:flex;justify-content:flex-end;margin-top:6px">
+            <button class="btn btn-secondary" id="resetModifierSliders" style="padding:2px 8px;font-size:10px">Reset</button>
+          </div>
+          <label style="margin-top:4px">Badge X Offset</label>
+          <div class="slider-row">
+            <input type="range" id="badgeXOffset" min="-4" max="4" step="0.1" value="0">
+            <span class="slider-val" id="badgeXOffsetVal">0.0</span>
+          </div>
+          <label style="margin-top:8px">Badge Y Offset</label>
+          <div class="slider-row">
+            <input type="range" id="badgeYOffset" min="-4" max="4" step="0.1" value="0">
+            <span class="slider-val" id="badgeYOffsetVal">0.0</span>
+          </div>
+          <label style="margin-top:8px">Badge Scale</label>
+          <div class="slider-row">
+            <input type="range" id="badgeScale" min="0.3" max="2.0" step="0.05" value="1">
+            <span class="slider-val" id="badgeScaleVal">1.00</span>
+          </div>
           <label style="margin-top:8px">Notch Width</label>
           <div class="slider-row">
             <input type="range" id="notchWidth" min="4" max="12" step="0.5" value="8">
@@ -855,15 +937,17 @@
     <ol>
       <li><a href="https://opentype.js.org" target="_blank">opentype.js</a> converts font glyphs into SVG path data</li>
       <li>The path is composited onto a background shape</li>
+      <li>If a badge SVG is provided, a corner notch is cut and the badge is scaled to fit</li>
       <li><a href="https://svgo.dev" target="_blank">SVGO</a> optimizes the final SVG</li>
     </ol>
     <div class="flowchart">
-      <svg viewBox="0 0 580 48" width="580" height="48" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="-2 -1 750 106" width="750" height="106" xmlns="http://www.w3.org/2000/svg">
         <style>
           .fc-node { stroke-width: 1.2; }
           .fc-label { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; font-size: 10px; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
           .fc-arrow { stroke: var(--accent); stroke-width: 1.5; fill: none; stroke-dasharray: 6 4; animation: fc-flow 0.8s linear infinite; }
           .fc-head { fill: var(--accent); }
+          .fc-branch { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; font-size: 8px; fill: var(--text-dim); }
           @keyframes fc-flow { to { stroke-dashoffset: -10; } }
         </style>
         <!-- Font File (rounded rect) -->
@@ -890,15 +974,39 @@
         <!-- Arrow 4 -->
         <line x1="407" y1="24" x2="433" y2="24" class="fc-arrow"/>
         <polygon points="433,20 441,24 433,28" class="fc-head"/>
-        <!-- SVGO (stadium) -->
-        <rect x="443" y="8" width="56" height="32" rx="16" ry="16" class="fc-node" fill="var(--surface2)" stroke="var(--accent)"/>
-        <text x="471" y="24" class="fc-label" fill="var(--accent)">SVGO</text>
-        <!-- Arrow 5 -->
-        <line x1="503" y1="24" x2="525" y2="24" class="fc-arrow"/>
-        <polygon points="525,20 533,24 525,28" class="fc-head"/>
+        <!-- Badge? (diamond) -->
+        <polygon points="471,4 507,24 471,44 435,24" class="fc-node" fill="var(--surface2)" stroke="var(--border)"/>
+        <text x="471" y="24" class="fc-label" font-size="9">Badge?</text>
+        <!-- "no" branch: straight to SVGO -->
+        <line x1="507" y1="24" x2="617" y2="24" class="fc-arrow"/>
+        <text x="520" y="17" class="fc-branch">no</text>
+        <polygon points="617,20 625,24 617,28" class="fc-head"/>
+        <!-- "yes" branch: down to Badge SVG row -->
+        <line x1="471" y1="44" x2="471" y2="62" class="fc-arrow"/>
+        <text x="480" y="54" class="fc-branch">yes</text>
+        <polygon points="467,62 471,70 475,62" class="fc-head"/>
+        <!-- Badge SVG (parallelogram) -->
+        <polygon points="443,72 517,72 509,96 435,96" class="fc-node" fill="var(--surface2)" stroke="var(--border)"/>
+        <text x="476" y="84" class="fc-label" font-size="9">Badge SVG</text>
+        <!-- Arrow from Badge SVG to Notch+Fit -->
+        <line x1="521" y1="84" x2="539" y2="84" class="fc-arrow"/>
+        <polygon points="539,80 547,84 539,88" class="fc-head"/>
+        <!-- Notch + Fit (stadium) -->
+        <rect x="549" y="68" width="80" height="32" rx="16" ry="16" class="fc-node" fill="var(--surface2)" stroke="var(--accent)"/>
+        <text x="589" y="84" class="fc-label" fill="var(--accent)" font-size="9">Notch + Fit</text>
+        <!-- Arrow from Notch+Fit up to join main line before SVGO -->
+        <line x1="633" y1="84" x2="653" y2="84" class="fc-arrow"/>
+        <line x1="653" y1="84" x2="653" y2="46" class="fc-arrow"/>
+        <polygon points="649,46 653,40 657,46" class="fc-head"/>
+        <!-- SVGO (stadium) — shifted right -->
+        <rect x="625" y="8" width="56" height="32" rx="16" ry="16" class="fc-node" fill="var(--surface2)" stroke="var(--accent)"/>
+        <text x="653" y="24" class="fc-label" fill="var(--accent)">SVGO</text>
+        <!-- Arrow 6 -->
+        <line x1="685" y1="24" x2="701" y2="24" class="fc-arrow"/>
+        <polygon points="701,20 709,24 701,28" class="fc-head"/>
         <!-- Icon (circle) -->
-        <circle cx="553" cy="24" r="18" class="fc-node" fill="var(--surface2)" stroke="var(--accent)"/>
-        <text x="553" y="24" class="fc-label" fill="var(--accent)" font-weight="600">Icon</text>
+        <circle cx="727" cy="24" r="18" class="fc-node" fill="var(--surface2)" stroke="var(--accent)"/>
+        <text x="727" y="24" class="fc-label" fill="var(--accent)" font-weight="600">Icon</text>
       </svg>
     </div>
   </details>
@@ -911,7 +1019,6 @@ import { optimize as svgoOptimize } from 'https://cdn.jsdelivr.net/npm/svgo@3/di
 import {
   PRESETS,
   SHAPES,
-  MODIFIERS,
   getFontUrl,
   getGoogleFontUrl,
   calibrateFontSize as calibrateFontSizeCore,
@@ -925,7 +1032,8 @@ let currentFont = null;
 
 let currentShape = 'circle';
 let activeTab = 'light';
-let currentModifier = 'none';
+let customBadgeSvg = null;
+let customBadgeName = '';
 let svgLight = '';
 let svgDark = '';
 let styles = { bold: false, italic: false };
@@ -1129,7 +1237,7 @@ function drawPixelGrid(id) {
     lines += `<line x1="0" y1="${i}" x2="${s}" y2="${i}"/>`;
   }
   el.innerHTML = `<svg viewBox="0 0 ${s} ${s}" width="128" height="128" shape-rendering="crispEdges">` +
-    `<g fill="none" stroke="rgba(128,128,128,0.08)" stroke-width="${sw}">${lines}</g></svg>`;
+    `<g fill="none" stroke="rgba(200,200,200,0.25)" stroke-width="${sw}">${lines}</g></svg>`;
 }
 
 // ── Render & Preview ──────────────────────────────────────────────────
@@ -1144,12 +1252,18 @@ function render() {
   let rawLight = generateSVG(lightFill, lightStroke, lightStroke, sw);
   let rawDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
 
-  if (currentModifier !== 'none') {
+  if (customBadgeSvg) {
     const nw = parseFloat(document.getElementById('notchWidth').value);
     const nh = parseFloat(document.getElementById('notchHeight').value);
     const nr = parseFloat(document.getElementById('notchRadius').value);
-    rawLight = applyModifier(rawLight, currentModifier, lightStroke, lastViewBoxSize, nw, nh, nr);
-    rawDark = applyModifier(rawDark, currentModifier, darkStroke, lastViewBoxSize, nw, nh, nr);
+    const opts = {
+      customBadgeSvg,
+      badgeXOffset: parseFloat(document.getElementById('badgeXOffset').value),
+      badgeYOffset: parseFloat(document.getElementById('badgeYOffset').value),
+      badgeScale: parseFloat(document.getElementById('badgeScale').value),
+    };
+    rawLight = applyModifier(rawLight, 'custom', lightStroke, lastViewBoxSize, nw, nh, nr, opts);
+    rawDark = applyModifier(rawDark, 'custom', darkStroke, lastViewBoxSize, nw, nh, nr, opts);
   }
 
   svgLight = optimizeSVG(rawLight);
@@ -1345,27 +1459,6 @@ document.getElementById('shapeGrid').addEventListener('click', e => {
 });
 
 // ── Modifier Selection ────────────────────────────────────────────────
-function buildModifiers() {
-  const grid = document.getElementById('modifierGrid');
-  Object.entries(MODIFIERS).forEach(([key, mod]) => {
-    const btn = document.createElement('button');
-    btn.className = 'shape-btn' + (key === 'none' ? ' active' : '');
-    btn.dataset.modifier = key;
-    btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 16 16">${mod.preview}</svg>\n${mod.label}`;
-    grid.appendChild(btn);
-  });
-}
-
-document.getElementById('modifierGrid').addEventListener('click', e => {
-  const btn = e.target.closest('.shape-btn');
-  if (!btn) return;
-  e.currentTarget.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  currentModifier = btn.dataset.modifier;
-  document.getElementById('modifierTuning').style.display = currentModifier === 'none' ? 'none' : '';
-  render();
-});
-
 // ── Slider Labels ─────────────────────────────────────────────────────
 function bindSlider(id, valId, decimals = 1) {
   const slider = document.getElementById(id);
@@ -1613,9 +1706,95 @@ bindSlider('strokeWidth', 'strokeWidthVal');
 bindSlider('notchWidth', 'notchWidthVal');
 bindSlider('notchHeight', 'notchHeightVal');
 bindSlider('notchRadius', 'notchRadiusVal');
+bindSlider('badgeXOffset', 'badgeXOffsetVal');
+bindSlider('badgeYOffset', 'badgeYOffsetVal');
+bindSlider('badgeScale', 'badgeScaleVal', 2);
+
+document.getElementById('resetModifierSliders').addEventListener('click', () => {
+  document.getElementById('notchWidth').value = 8;
+  document.getElementById('notchWidthVal').textContent = '8.0';
+  document.getElementById('notchHeight').value = 8;
+  document.getElementById('notchHeightVal').textContent = '8.0';
+  document.getElementById('notchRadius').value = 2;
+  document.getElementById('notchRadiusVal').textContent = '2.0';
+  document.getElementById('badgeXOffset').value = 0;
+  document.getElementById('badgeXOffsetVal').textContent = '0.0';
+  document.getElementById('badgeYOffset').value = 0;
+  document.getElementById('badgeYOffsetVal').textContent = '0.0';
+  document.getElementById('badgeScale').value = 1;
+  document.getElementById('badgeScaleVal').textContent = '1.00';
+  render();
+});
+
+// ── Custom Badge Import ───────────────────────────────────────────────
+function loadCustomBadge(svgText, name) {
+  if (!svgText || !svgText.includes('<svg')) return;
+  customBadgeSvg = svgText;
+  customBadgeName = name || 'custom.svg';
+
+  // Show preview + tuning, hide drop zone
+  const thumbEl = document.getElementById('badgePreviewThumb');
+  thumbEl.innerHTML = svgText.replace(/width=["'][^"']*["']/i, 'width="24"').replace(/height=["'][^"']*["']/i, 'height="24"');
+  document.getElementById('badgePreviewName').textContent = customBadgeName;
+  document.getElementById('badgePreview').style.display = '';
+  document.getElementById('badgeDropZone').style.display = 'none';
+  document.getElementById('badgeTuning').style.display = '';
+  render();
+}
+
+function clearCustomBadge() {
+  customBadgeSvg = null;
+  customBadgeName = '';
+  document.getElementById('badgePreview').style.display = 'none';
+  document.getElementById('badgeTuning').style.display = 'none';
+  document.getElementById('badgeDropZone').style.display = '';
+  document.getElementById('badgeXOffset').value = 0;
+  document.getElementById('badgeXOffsetVal').textContent = '0.0';
+  document.getElementById('badgeYOffset').value = 0;
+  document.getElementById('badgeYOffsetVal').textContent = '0.0';
+  document.getElementById('badgeScale').value = 1;
+  document.getElementById('badgeScaleVal').textContent = '1.00';
+  render();
+}
+
+document.getElementById('badgeClearBtn').addEventListener('click', clearCustomBadge);
+
+document.getElementById('badgeBrowseLink').addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('badgeFileInput').click();
+});
+
+document.getElementById('badgeFileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => loadCustomBadge(evt.target.result, file.name);
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+const badgeDropZone = document.getElementById('badgeDropZone');
+badgeDropZone.addEventListener('dragover', e => { e.preventDefault(); badgeDropZone.classList.add('dragover'); });
+badgeDropZone.addEventListener('dragleave', () => badgeDropZone.classList.remove('dragover'));
+badgeDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  badgeDropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.name.endsWith('.svg')) return;
+  const reader = new FileReader();
+  reader.onload = evt => loadCustomBadge(evt.target.result, file.name);
+  reader.readAsText(file);
+});
+
+badgeDropZone.addEventListener('paste', e => {
+  const text = e.clipboardData.getData('text');
+  if (text && text.includes('<svg')) {
+    e.preventDefault();
+    loadCustomBadge(text, 'pasted.svg');
+  }
+});
 
 buildShapes();
-buildModifiers();
 buildPresets();
 updatePresetSwatches(themes[currentThemeIndex].key);
 

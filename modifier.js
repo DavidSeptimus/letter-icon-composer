@@ -36,9 +36,45 @@ function badgeTransform(left, top, W, H) {
   return ` transform="translate(${tx} ${ty})${needsScale ? ` scale(${sx} ${sy})` : ''}"`;
 }
 
+// ── Custom Badge Fit ──────────────────────────────────────────────────
+
+function computeUniformBadgeFit(badgeSvg, notchLeft, notchTop, notchW, notchH, xOff, yOff, userScale) {
+  // Parse viewBox (minX, minY, width, height) or fall back to width/height attrs
+  let minX = 0, minY = 0, badgeW = 16, badgeH = 16;
+  const vbMatch = badgeSvg.match(/viewBox=["']([^"']+)["']/);
+  if (vbMatch) {
+    const parts = vbMatch[1].trim().split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+      minX = parts[0]; minY = parts[1];
+      badgeW = parts[2]; badgeH = parts[3];
+    }
+  } else {
+    const wMatch = badgeSvg.match(/\bwidth=["']([0-9.]+)["']/);
+    const hMatch = badgeSvg.match(/\bheight=["']([0-9.]+)["']/);
+    if (wMatch) badgeW = parseFloat(wMatch[1]);
+    if (hMatch) badgeH = parseFloat(hMatch[1]);
+  }
+
+  // Uniform scale: fit (notchW-2) × (notchH-2), then apply user scale
+  const fitScale = Math.min((notchW - 2) / badgeW, (notchH - 2) / badgeH);
+  const scale = fitScale * userScale;
+
+  // Bottom-right alignment: badge corner flush with viewBox corner
+  const viewBoxSize = notchLeft + notchW;
+  const tx = viewBoxSize - (minX + badgeW) * scale + xOff;
+  const ty = viewBoxSize - (minY + badgeH) * scale + yOff;
+
+  // Extract inner content between <svg...> and </svg>
+  const innerMatch = badgeSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
+  const inner = innerMatch ? innerMatch[1].trim() : '';
+  if (!inner) return '';
+
+  return `<g transform="translate(${+tx.toFixed(3)} ${+ty.toFixed(3)}) scale(${+scale.toFixed(4)})">${inner}</g>`;
+}
+
 // ── ClipPath-Only Fallback (no dependencies) ─────────────────────────
 
-function applyModifierClipPath(svgString, modifierKey, modifierColor, viewBoxSize, nw, nh, nr) {
+function applyModifierClipPath(svgString, modifierKey, modifierColor, viewBoxSize, nw, nh, nr, opts) {
   if (!modifierKey || modifierKey === 'none') return svgString;
   const modDef = MODIFIERS[modifierKey];
   if (!modDef) return svgString;
@@ -47,9 +83,15 @@ function applyModifierClipPath(svgString, modifierKey, modifierColor, viewBoxSiz
   const keepPath = keepRegionPath(s, left, top, R);
 
   // Build modifier badge markup
-  let modMarkup = modDef.generate(modifierColor);
-  const bt = badgeTransform(left, top, W, H);
-  if (bt) modMarkup = `<g${bt}>${modMarkup}</g>`;
+  let modMarkup;
+  if (modifierKey === 'custom' && opts?.customBadgeSvg) {
+    modMarkup = computeUniformBadgeFit(opts.customBadgeSvg, left, top, W, H,
+      opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
+  } else {
+    modMarkup = modDef.generate(modifierColor);
+    const bt = badgeTransform(left, top, W, H);
+    if (bt) modMarkup = `<g${bt}>${modMarkup}</g>`;
+  }
 
   // Insert clipPath + wrapping group via string manipulation (no DOM needed)
   const clipDef = `<defs><clipPath id="nc"><path d="${keepPath}"/></clipPath></defs>`;
@@ -146,7 +188,7 @@ async function createFullEngine(paper) {
     return { inner, ring };
   }
 
-  function applyModifier(svgString, modifierKey, modifierColor, viewBoxSize, nw, nh, nr) {
+  function applyModifier(svgString, modifierKey, modifierColor, viewBoxSize, nw, nh, nr, opts) {
     if (!modifierKey || modifierKey === 'none') return svgString;
     const modDef = MODIFIERS[modifierKey];
     if (!modDef) return svgString;
@@ -276,9 +318,15 @@ async function createFullEngine(paper) {
     notch.remove();
 
     // Add modifier badge
-    let modMarkup = modDef.generate(modifierColor);
-    const bt = badgeTransform(left, top, W, H);
-    if (bt) modMarkup = `<g${bt}>${modMarkup}</g>`;
+    let modMarkup;
+    if (modifierKey === 'custom' && opts?.customBadgeSvg) {
+      modMarkup = computeUniformBadgeFit(opts.customBadgeSvg, left, top, W, H,
+        opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
+    } else {
+      modMarkup = modDef.generate(modifierColor);
+      const bt = badgeTransform(left, top, W, H);
+      if (bt) modMarkup = `<g${bt}>${modMarkup}</g>`;
+    }
 
     const modDoc = xmlParser.parseFromString(
       `<svg xmlns="http://www.w3.org/2000/svg">${modMarkup}</svg>`, 'image/svg+xml');
