@@ -6,16 +6,6 @@
 <title>Letter Icon Composer</title>
 <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
 <style>
-  [data-theme="purple"] {
-    --bg: #1e1e2e;
-    --surface: #282840;
-    --surface2: #32324a;
-    --border: #44446a;
-    --text: #e0e0f0;
-    --text-dim: #9090b0;
-    --accent: #7c8aff;
-    --accent-hover: #9aa4ff;
-  }
   :root, [data-theme="islands-dark"] {
     --bg: #1E1F22;
     --surface: #26282b;
@@ -35,6 +25,16 @@
     --text-dim: #6C707E;
     --accent: #3574F0;
     --accent-hover: #315FBD;
+  }
+  [data-theme="purple"] {
+    --bg: #1e1e2e;
+    --surface: #282840;
+    --surface2: #32324a;
+    --border: #44446a;
+    --text: #e0e0f0;
+    --text-dim: #9090b0;
+    --accent: #7c8aff;
+    --accent-hover: #9aa4ff;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-color: var(--border) transparent; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -287,9 +287,43 @@
     color: var(--text-dim);
     margin-top: 4px;
   }
-  .preview-zoomed svg { display: block; }
+  .preview-zoomed { position: relative; display: inline-block; --cell: 4px; }
+  .preview-zoomed > svg { display: block; position: relative; z-index: 1; }
   .preview-light .preview-zoomed { background: #f5f5f5; border-radius: 8px; padding: 16px; }
   .preview-dark .preview-zoomed { background: #2b2b2b; border-radius: 8px; padding: 16px; }
+  .preview-zoomed.checkerboard::before {
+    content: '';
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    width: 128px;
+    height: 128px;
+    background-image:
+      linear-gradient(45deg, rgba(128,128,128,0.15) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(128,128,128,0.15) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(128,128,128,0.15) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(128,128,128,0.15) 75%);
+    background-size: calc(var(--cell) * 2) calc(var(--cell) * 2);
+    background-position: 0 0, 0 var(--cell), var(--cell) calc(-1 * var(--cell)), calc(-1 * var(--cell)) 0;
+    pointer-events: none;
+  }
+  .preview-zoomed .pixel-grid {
+    display: none;
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .preview-zoomed .pixel-grid svg { display: block; }
+  .preview-zoomed.show-grid .pixel-grid { display: block; }
+
+  .preview-toggles {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
 
   .btn-row {
     display: flex;
@@ -507,12 +541,23 @@
 
   <!-- Preview Panel -->
   <div class="preview-area">
+    <div class="preview-toggles">
+      <button class="style-toggle" id="toggleCheckerboard" title="Checkerboard background">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 0h4v4H0zm4 4h4v4H4zm4-4h4v4H8zm4 4h4v4h-4zM0 8h4v4H0zm8 0h4v4H8zm-4 4h4v4H4zm8 0h4v4h-4z" opacity="0.6"/></svg>
+      </button>
+      <button class="style-toggle" id="togglePixelGrid" title="Pixel grid overlay">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1"><line x1="4" y1="0" x2="4" y2="16"/><line x1="8" y1="0" x2="8" y2="16"/><line x1="12" y1="0" x2="12" y2="16"/><line x1="0" y1="4" x2="16" y2="4"/><line x1="0" y1="8" x2="16" y2="8"/><line x1="0" y1="12" x2="16" y2="12"/></svg>
+      </button>
+    </div>
+
     <div class="preview-row">
       <div class="preview-card preview-light">
         <div class="preview-card-title">Light Theme</div>
         <div class="preview-canvas-wrap">
           <div>
-            <div class="preview-zoomed" id="previewLightZoomed"></div>
+            <div class="preview-zoomed" id="previewLightZoomed">
+              <div class="pixel-grid" id="pixelGridLight"></div>
+            </div>
           </div>
           <div class="preview-actual">
             <div id="previewLightActual"></div>
@@ -528,7 +573,9 @@
         <div class="preview-card-title">Dark Theme</div>
         <div class="preview-canvas-wrap">
           <div>
-            <div class="preview-zoomed" id="previewDarkZoomed"></div>
+            <div class="preview-zoomed" id="previewDarkZoomed">
+              <div class="pixel-grid" id="pixelGridDark"></div>
+            </div>
           </div>
           <div class="preview-actual">
             <div id="previewDarkActual"></div>
@@ -833,6 +880,33 @@ function generateSVG(fill, stroke, letterColor, strokeWidth) {
   return svg;
 }
 
+// ── Preview Helpers ───────────────────────────────────────────────────
+function setZoomedSvg(containerId, svgMarkup) {
+  const container = document.getElementById(containerId);
+  const existing = container.querySelector('svg');
+  if (existing) existing.remove();
+  container.insertAdjacentHTML('afterbegin', svgMarkup);
+}
+
+function drawPixelGrids() {
+  drawPixelGrid('pixelGridLight');
+  drawPixelGrid('pixelGridDark');
+}
+
+function drawPixelGrid(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const s = lastViewBoxSize;
+  const sw = 1 / 8;
+  let lines = '';
+  for (let i = 1; i < s; i++) {
+    lines += `<line x1="${i}" y1="0" x2="${i}" y2="${s}"/>`;
+    lines += `<line x1="0" y1="${i}" x2="${s}" y2="${i}"/>`;
+  }
+  el.innerHTML = `<svg viewBox="0 0 ${s} ${s}" width="128" height="128" shape-rendering="crispEdges">` +
+    `<g fill="none" stroke="rgba(128,128,128,0.08)" stroke-width="${sw}">${lines}</g></svg>`;
+}
+
 // ── Render & Preview ──────────────────────────────────────────────────
 function render() {
   clearError();
@@ -850,8 +924,13 @@ function render() {
   const lightZoomed = svgLight.replace(zoomRe, 'width="128" height="128"');
   const darkZoomed = svgDark.replace(zoomRe, 'width="128" height="128"');
 
-  document.getElementById('previewLightZoomed').innerHTML = lightZoomed;
-  document.getElementById('previewDarkZoomed').innerHTML = darkZoomed;
+  setZoomedSvg('previewLightZoomed', lightZoomed);
+  setZoomedSvg('previewDarkZoomed', darkZoomed);
+  drawPixelGrids();
+
+  // Sync checkerboard cell size with icon pixel size
+  const cellSize = (128 / lastViewBoxSize / 2) + 'px';
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.style.setProperty('--cell', cellSize));
 
   // Actual size previews
   document.getElementById('previewLightActual').innerHTML = svgLight;
@@ -1082,7 +1161,7 @@ document.getElementById('fontFile').addEventListener('change', e => {
 });
 
 // ── Style Toggles ────────────────────────────────────────────────────
-document.querySelectorAll('.style-toggle').forEach(btn => {
+document.querySelectorAll('.style-toggle[data-style]').forEach(btn => {
   btn.addEventListener('click', () => {
     const key = btn.dataset.style;
     styles[key] = !styles[key];
@@ -1100,6 +1179,17 @@ document.getElementById('letter').addEventListener('input', () => {
   calibrateFontSize();
   render();
 });
+
+// ── Preview Toggle Bindings ───────────────────────────────────────────
+function setPreviewToggle(btnId, className, storageKey) {
+  const btn = document.getElementById(btnId);
+  const active = btn.classList.toggle('active');
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.toggle(className));
+  localStorage.setItem(storageKey, active);
+}
+
+document.getElementById('toggleCheckerboard').addEventListener('click', () => setPreviewToggle('toggleCheckerboard', 'checkerboard', 'preview-checkerboard'));
+document.getElementById('togglePixelGrid').addEventListener('click', () => setPreviewToggle('togglePixelGrid', 'show-grid', 'preview-grid'));
 
 // ── Button Event Bindings ─────────────────────────────────────────────
 document.getElementById('copyLight').addEventListener('click', e => copySVG('light', e.target));
@@ -1213,6 +1303,16 @@ bindSlider('strokeWidth', 'strokeWidthVal');
 
 buildShapes();
 buildPresets();
+
+// Restore preview toggles
+if (localStorage.getItem('preview-checkerboard') === 'true') {
+  document.getElementById('toggleCheckerboard').classList.add('active');
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('checkerboard'));
+}
+if (localStorage.getItem('preview-grid') === 'true') {
+  document.getElementById('togglePixelGrid').classList.add('active');
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('show-grid'));
+}
 
 // Restore saved font or default to open-sans
 const savedFont = JSON.parse(localStorage.getItem('font-setting') || 'null');
