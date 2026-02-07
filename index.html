@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: light)" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.5' fill='%23E7EFFD' stroke='%233574F0'/%3E%3Cpath fill='%233574F0' d='M7.16 4.28L7.16 11.72L6.03 11.72L6.03 4.28L7.16 4.28ZM9.33 4.40L9.33 4.40Q9.59 4.40 9.78 4.54Q9.97 4.67 9.97 5.01L9.97 5.01Q9.97 5.35 9.78 5.49Q9.59 5.63 9.33 5.63L9.33 5.63Q9.06 5.63 8.88 5.49Q8.70 5.35 8.70 5.01L8.70 5.01Q8.70 4.67 8.88 4.54Q9.06 4.40 9.33 4.40ZM8.76 6.43L9.89 6.43L9.89 11.72L8.76 11.72L8.76 6.43Z'/%3E%3C/svg%3E">
 <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: dark)" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.5' fill='%2325324D' stroke='%23548AF7'/%3E%3Cpath fill='%23548AF7' d='M7.16 4.28L7.16 11.72L6.03 11.72L6.03 4.28L7.16 4.28ZM9.33 4.40L9.33 4.40Q9.59 4.40 9.78 4.54Q9.97 4.67 9.97 5.01L9.97 5.01Q9.97 5.35 9.78 5.49Q9.59 5.63 9.33 5.63L9.33 5.63Q9.06 5.63 8.88 5.49Q8.70 5.35 8.70 5.01L8.70 5.01Q8.70 4.67 8.88 4.54Q9.06 4.40 9.33 4.40ZM8.76 6.43L9.89 6.43L9.89 11.72L8.76 11.72L8.76 6.43Z'/%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/paper@0.12.18/dist/paper-full.min.js"></script>
 <style>
   :root, [data-theme="islands-dark"] {
     --bg: #1E1F22;
@@ -622,6 +623,28 @@
       </details>
 
       <details class="section" open>
+        <summary class="section-title">Modifier</summary>
+        <div class="shape-grid" id="modifierGrid"></div>
+        <div id="modifierTuning" style="display:none">
+          <label style="margin-top:8px">Notch Width</label>
+          <div class="slider-row">
+            <input type="range" id="notchWidth" min="4" max="12" step="0.5" value="8">
+            <span class="slider-val" id="notchWidthVal">8.0</span>
+          </div>
+          <label style="margin-top:8px">Notch Height</label>
+          <div class="slider-row">
+            <input type="range" id="notchHeight" min="4" max="12" step="0.5" value="8">
+            <span class="slider-val" id="notchHeightVal">8.0</span>
+          </div>
+          <label style="margin-top:8px">Notch Radius</label>
+          <div class="slider-row">
+            <input type="range" id="notchRadius" min="0" max="6" step="0.5" value="2">
+            <span class="slider-val" id="notchRadiusVal">2.0</span>
+          </div>
+        </div>
+      </details>
+
+      <details class="section" open>
         <summary class="section-title">Color Preset</summary>
         <div class="preset-grid" id="presetGrid"></div>
       </details>
@@ -888,6 +911,7 @@ import { optimize as svgoOptimize } from 'https://cdn.jsdelivr.net/npm/svgo@3/di
 import {
   PRESETS,
   SHAPES,
+  MODIFIERS,
   getFontUrl,
   getGoogleFontUrl,
   calibrateFontSize as calibrateFontSizeCore,
@@ -900,6 +924,7 @@ let currentFont = null;
 
 let currentShape = 'circle';
 let activeTab = 'light';
+let currentModifier = 'none';
 let svgLight = '';
 let svgDark = '';
 let styles = { bold: false, italic: false };
@@ -937,6 +962,237 @@ function optimizeSVG(svgString) {
   } catch {
     return svgString;
   }
+}
+
+// ── Paper.js Modifier Processing ──────────────────────────────────────
+let paperScope;
+if (typeof paper !== 'undefined') {
+  paperScope = new paper.PaperScope();
+  paperScope.setup(new paper.Size(1, 1));
+}
+
+function applyPaperTransform(pp, transformStr) {
+  const transforms = [];
+  const re = /(translate|scale|rotate)\(([^)]+)\)/g;
+  let m;
+  while ((m = re.exec(transformStr)) !== null)
+    transforms.push({ type: m[1], nums: m[2].split(/[\s,]+/).map(Number) });
+  // SVG applies rightmost transform first — iterate in reverse
+  for (let i = transforms.length - 1; i >= 0; i--) {
+    const { type, nums } = transforms[i];
+    if (type === 'translate') pp.translate(new paper.Point(nums[0], nums[1] || 0));
+    else if (type === 'scale') pp.scale(nums[0], nums[1] ?? nums[0], new paper.Point(0, 0));
+    else if (type === 'rotate') pp.rotate(nums[0], new paper.Point(nums[1] || 0, nums[2] || 0));
+  }
+}
+
+function svgElToPaperPath(el) {
+  const tag = el.tagName.toLowerCase();
+  let p;
+  if (tag === 'circle') {
+    p = new paper.Path.Circle(
+      new paper.Point(+el.getAttribute('cx'), +el.getAttribute('cy')),
+      +el.getAttribute('r'));
+  } else if (tag === 'rect') {
+    const rx = +(el.getAttribute('rx') || 0);
+    p = new paper.Path.Rectangle(
+      new paper.Rectangle(+el.getAttribute('x'), +el.getAttribute('y'),
+        +el.getAttribute('width'), +el.getAttribute('height')),
+      new paper.Size(rx, rx));
+  } else if (tag === 'path') {
+    const d = el.getAttribute('d');
+    if (!d) return null;
+    p = new paper.Path(d);
+  } else {
+    return null;
+  }
+  const t = el.getAttribute('transform');
+  if (t) applyPaperTransform(p, t);
+  return p;
+}
+
+const STYLE_ATTRS = ['fill', 'stroke', 'stroke-width', 'fill-rule', 'clip-rule',
+  'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'opacity'];
+
+function createStrokeParts(el, sw, parentTransform) {
+  const tag = el.tagName.toLowerCase();
+  let outer, inner;
+
+  if (tag === 'circle') {
+    const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy'), r = +el.getAttribute('r');
+    outer = new paper.Path.Circle(new paper.Point(cx, cy), r + sw / 2);
+    inner = new paper.Path.Circle(new paper.Point(cx, cy), Math.max(0, r - sw / 2));
+  } else if (tag === 'rect') {
+    const x = +el.getAttribute('x'), y = +el.getAttribute('y');
+    const w = +el.getAttribute('width'), h = +el.getAttribute('height');
+    const rx = +(el.getAttribute('rx') || 0);
+    const outerRx = rx + sw / 2, innerRx = Math.max(0, rx - sw / 2);
+    outer = new paper.Path.Rectangle(
+      new paper.Rectangle(x - sw / 2, y - sw / 2, w + sw, h + sw), new paper.Size(outerRx, outerRx));
+    inner = new paper.Path.Rectangle(
+      new paper.Rectangle(x + sw / 2, y + sw / 2, Math.max(0, w - sw), Math.max(0, h - sw)),
+      new paper.Size(innerRx, innerRx));
+  } else {
+    return null; // fallback for arbitrary paths
+  }
+
+  const t = el.getAttribute('transform');
+  if (t) { applyPaperTransform(outer, t); applyPaperTransform(inner, t); }
+  if (parentTransform) { applyPaperTransform(outer, parentTransform); applyPaperTransform(inner, parentTransform); }
+
+  const ring = outer.subtract(inner);
+  outer.remove();
+  return { inner, ring };
+}
+
+function applyModifier(svgString, modifierKey, modifierColor, viewBoxSize, nw, nh, nr) {
+  if (!modifierKey || modifierKey === 'none' || !paperScope) return svgString;
+  const modDef = MODIFIERS[modifierKey];
+  if (!modDef) return svgString;
+
+  paperScope.activate();
+  const s = viewBoxSize;
+  const W = nw || 8, H = nh || 8, R = Math.min(nr ?? 2, Math.min(W, H) / 2);
+  const left = s - W, top = s - H;
+  const cp1x = left, cp1y = +(top + R * 0.44772).toFixed(3);
+  const cp2x = +(left + R * 0.44772).toFixed(3), cp2y = top;
+  const notch = new paper.Path(
+    `M${left + R} ${top}H${s}V${s}H${left}V${top + R}C${cp1x} ${cp1y} ${cp2x} ${cp2y} ${left + R} ${top}Z`);
+
+  const xmlParser = new DOMParser();
+  const doc = xmlParser.parseFromString(svgString, 'image/svg+xml');
+  const svgEl = doc.documentElement;
+
+  // Build a clipPath for shapes that can't use boolean subtraction (paths, stroke-only)
+  const viewBoxRect = new paper.Path.Rectangle(new paper.Rectangle(0, 0, s, s));
+  const keepRegion = viewBoxRect.subtract(notch);
+  const keepPathData = keepRegion.pathData;
+  viewBoxRect.remove();
+  keepRegion.remove();
+
+  let clipAdded = false;
+  function ensureClipDef() {
+    if (clipAdded) return;
+    clipAdded = true;
+    let defs = svgEl.querySelector('defs');
+    if (!defs) {
+      defs = doc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      svgEl.insertBefore(defs, svgEl.firstChild);
+    }
+    const clipPath = doc.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+    clipPath.setAttribute('id', 'nc');
+    const clipEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+    clipEl.setAttribute('d', keepPathData);
+    clipPath.appendChild(clipEl);
+    defs.appendChild(clipPath);
+  }
+
+  function processEl(el, parentTransform) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'g') {
+      const t = el.getAttribute('transform');
+      for (const child of Array.from(el.children)) processEl(child, t);
+      if (el.children.length === 0) el.remove();
+      return;
+    }
+
+    const isCircleOrRect = tag === 'circle' || tag === 'rect';
+    const fillVal = el.getAttribute('fill');
+    const isFillNone = fillVal === 'none';
+
+    // For path elements or stroke-only elements: use clipPath
+    if (!isCircleOrRect || isFillNone) {
+      ensureClipDef();
+      el.setAttribute('clip-path', 'url(#nc)');
+      // Unwrap from <g> if needed (move transform to element)
+      const parent = el.parentNode;
+      if (parent.tagName?.toLowerCase() === 'g') {
+        const gt = parent.getAttribute('transform');
+        if (gt) {
+          const existing = el.getAttribute('transform');
+          el.setAttribute('transform', existing ? `${gt} ${existing}` : gt);
+        }
+        parent.parentNode.insertBefore(el, parent);
+        if (parent.children.length === 0) parent.remove();
+      }
+      return;
+    }
+
+    // Circle/rect with fill: use Paper.js boolean subtraction + stroke ring
+    const pp = svgElToPaperPath(el);
+    if (!pp) return;
+    if (parentTransform) applyPaperTransform(pp, parentTransform);
+
+    const strokeColor = el.getAttribute('stroke');
+    const strokeWidth = parseFloat(el.getAttribute('stroke-width')) || 0;
+    const hasStroke = strokeColor && strokeColor !== 'none' && strokeWidth > 0;
+    const parent = el.parentNode;
+    const insertionPoint = parent.tagName?.toLowerCase() === 'g' ? parent : null;
+
+    try {
+      // 1. Build stroke ring + inner fill boundary
+      let strokeEl = null;
+      let fillShape = pp;
+      if (hasStroke) {
+        const parts = createStrokeParts(el, strokeWidth, parentTransform);
+        if (parts) {
+          fillShape = parts.inner;
+
+          const ringResult = parts.ring.subtract(notch);
+          strokeEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+          strokeEl.setAttribute('d', ringResult.pathData);
+          strokeEl.setAttribute('fill', strokeColor);
+          if (ringResult.className === 'CompoundPath')
+            strokeEl.setAttribute('fill-rule', 'evenodd');
+          ringResult.remove();
+          parts.ring.remove();
+        }
+      }
+
+      // 2. Subtract notch from fill shape
+      const fillResult = fillShape.subtract(notch);
+      const fillEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+      fillEl.setAttribute('d', fillResult.pathData);
+      for (const a of STYLE_ATTRS) {
+        if (a === 'stroke' || a === 'stroke-width' || a.startsWith('stroke-')) continue;
+        const v = el.getAttribute(a);
+        if (v) fillEl.setAttribute(a, v);
+      }
+      if (fillResult.className === 'CompoundPath')
+        fillEl.setAttribute('fill-rule', 'evenodd');
+      fillResult.remove();
+      if (fillShape !== pp) fillShape.remove();
+
+      // 3. Insert: stroke ring first (below), then fill (on top)
+      if (insertionPoint) {
+        if (strokeEl) insertionPoint.parentNode.insertBefore(strokeEl, insertionPoint);
+        insertionPoint.parentNode.insertBefore(fillEl, insertionPoint);
+        el.remove();
+      } else {
+        if (strokeEl) parent.insertBefore(strokeEl, el);
+        parent.replaceChild(fillEl, el);
+      }
+    } catch (e) { /* subtraction failed — leave element unchanged */ }
+    pp.remove();
+  }
+
+  for (const child of Array.from(svgEl.children)) processEl(child, null);
+  notch.remove();
+
+  // Add modifier badge — scale/translate from 8×8 design space to actual notch
+  let modMarkup = modDef.generate(modifierColor);
+  const sx = W / 8, sy = H / 8;
+  const needsScale = sx !== 1 || sy !== 1;
+  const tx = left - 8 * sx, ty = top - 8 * sy;
+  if (needsScale || tx !== 0 || ty !== 0)
+    modMarkup = `<g transform="translate(${tx} ${ty})${needsScale ? ` scale(${sx} ${sy})` : ''}">${modMarkup}</g>`;
+
+  const modDoc = xmlParser.parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${modMarkup}</svg>`, 'image/svg+xml');
+  for (const child of Array.from(modDoc.documentElement.children))
+    svgEl.appendChild(doc.importNode(child, true));
+
+  return new XMLSerializer().serializeToString(svgEl);
 }
 
 // ── Error Reporting ───────────────────────────────────────────────────
@@ -1111,8 +1367,19 @@ function render() {
   const darkStroke = document.getElementById('darkStroke').value;
   const sw = parseFloat(document.getElementById('strokeWidth').value);
 
-  svgLight = optimizeSVG(generateSVG(lightFill, lightStroke, lightStroke, sw));
-  svgDark = optimizeSVG(generateSVG(darkFill, darkStroke, darkStroke, sw));
+  let rawLight = generateSVG(lightFill, lightStroke, lightStroke, sw);
+  let rawDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
+
+  if (currentModifier !== 'none') {
+    const nw = parseFloat(document.getElementById('notchWidth').value);
+    const nh = parseFloat(document.getElementById('notchHeight').value);
+    const nr = parseFloat(document.getElementById('notchRadius').value);
+    rawLight = applyModifier(rawLight, currentModifier, lightStroke, lastViewBoxSize, nw, nh, nr);
+    rawDark = applyModifier(rawDark, currentModifier, darkStroke, lastViewBoxSize, nw, nh, nr);
+  }
+
+  svgLight = optimizeSVG(rawLight);
+  svgDark = optimizeSVG(rawDark);
 
   // Zoomed previews (128x128) — use regex to handle any viewBox size
   const zoomRe = /width="\d+" height="\d+"/;
@@ -1293,13 +1560,35 @@ function buildShapes() {
 document.getElementById('shapeGrid').addEventListener('click', e => {
   const btn = e.target.closest('.shape-btn');
   if (!btn) return;
-  document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+  e.currentTarget.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   currentShape = btn.dataset.shape;
   const defaultScale = SHAPES[currentShape].defaultScale ?? 1.0;
   document.getElementById('shapeScale').value = defaultScale;
   document.getElementById('shapeScaleVal').textContent = defaultScale.toFixed(2);
   calibrateFontSize();
+  render();
+});
+
+// ── Modifier Selection ────────────────────────────────────────────────
+function buildModifiers() {
+  const grid = document.getElementById('modifierGrid');
+  Object.entries(MODIFIERS).forEach(([key, mod]) => {
+    const btn = document.createElement('button');
+    btn.className = 'shape-btn' + (key === 'none' ? ' active' : '');
+    btn.dataset.modifier = key;
+    btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 16 16">${mod.preview}</svg>\n${mod.label}`;
+    grid.appendChild(btn);
+  });
+}
+
+document.getElementById('modifierGrid').addEventListener('click', e => {
+  const btn = e.target.closest('.shape-btn');
+  if (!btn) return;
+  e.currentTarget.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentModifier = btn.dataset.modifier;
+  document.getElementById('modifierTuning').style.display = currentModifier === 'none' ? 'none' : '';
   render();
 });
 
@@ -1547,8 +1836,12 @@ bindSlider('fontSize', 'fontSizeVal');
 bindSlider('yOffset', 'yOffsetVal');
 bindSlider('xOffset', 'xOffsetVal');
 bindSlider('strokeWidth', 'strokeWidthVal');
+bindSlider('notchWidth', 'notchWidthVal');
+bindSlider('notchHeight', 'notchHeightVal');
+bindSlider('notchRadius', 'notchRadiusVal');
 
 buildShapes();
+buildModifiers();
 buildPresets();
 updatePresetSwatches(themes[currentThemeIndex].key);
 

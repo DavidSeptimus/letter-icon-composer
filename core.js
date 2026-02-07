@@ -137,6 +137,49 @@ export const SHAPES = {
   },
 };
 
+// ── Modifier Definitions ─────────────────────────────────────────────
+// Corner modifiers that clip the bottom-right of the main shape and
+// render a small badge icon in the freed area.
+// All generate() paths are authored for a 16×16 viewBox; larger viewBoxes
+// are handled by translating the modifier group at call site.
+export const MODIFIERS = {
+  none: {
+    label: 'None',
+    preview: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3" stroke-dasharray="2 2"/>',
+    generate: () => '',
+  },
+  plus: {
+    label: 'Plus',
+    preview: '<path d="M8 4V12M4 8H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+    generate: (color) =>
+      `<path d="M12.25 11H13.75V12.25H15V13.75H13.75V15H12.25V13.75H11V12.25H12.25Z" fill="${color}"/>`,
+  },
+  minus: {
+    label: 'Minus',
+    preview: '<path d="M4 8H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+    generate: (color) =>
+      `<rect x="10.5" y="12.25" width="5" height="1.5" rx="0.5" fill="${color}"/>`,
+  },
+  arrow: {
+    label: 'Arrow',
+    preview: '<path d="M4 8H11M8 5L11 8L8 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    generate: (color) =>
+      `<path fill-rule="evenodd" clip-rule="evenodd" d="M13.15 10.15C13.34 9.95 13.66 9.95 13.85 10.15L15.85 12.15C16.05 12.34 16.05 12.66 15.85 12.85L13.85 14.85C13.66 15.05 13.34 15.05 13.15 14.85C12.95 14.66 12.95 14.34 13.15 14.15L14.29 13H12.5C12.22 13 12 12.78 12 12.5C12 12.22 12.22 12 12.5 12H14.29L13.15 10.85C12.95 10.66 12.95 10.34 13.15 10.15Z" fill="${color}"/>`,
+  },
+  check: {
+    label: 'Check',
+    preview: '<path d="M4 8.5L6.5 11L12 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+    generate: (color) =>
+      `<path d="M10.5 13L12.5 15L15.5 11" fill="none" stroke="${color}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>`,
+  },
+  cross: {
+    label: 'Cross',
+    preview: '<path d="M5 5L11 11M11 5L5 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+    generate: (color) =>
+      `<path d="M11 11L15 15M15 11L11 15" fill="none" stroke="${color}" stroke-width="1.2" stroke-linecap="round"/>`,
+  },
+};
+
 // ── Font URL Resolution ──────────────────────────────────────────────
 export function getFontUrl(key, bold, italic) {
   if (key === 'open-sans') {
