@@ -17,6 +17,7 @@
     --text-dim: #9da0a8;
     --accent: #3574F0;
     --accent-hover: #467FF2;
+    --error: #F75464;
   }
   [data-theme="islands-light"] {
     --bg: #EBECF0;
@@ -27,6 +28,7 @@
     --text-dim: #6C707E;
     --accent: #3574F0;
     --accent-hover: #315FBD;
+    --error: #C7362B;
   }
   [data-theme="purple"] {
     --bg: #1e1e2e;
@@ -37,6 +39,7 @@
     --text-dim: #9090b0;
     --accent: #7c8aff;
     --accent-hover: #9aa4ff;
+    --error: #f38ba8;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-color: var(--border) transparent; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -182,6 +185,10 @@
     width: 80px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
+  }
+  .color-field input[type="text"].invalid {
+    border-color: var(--error);
+    outline-color: var(--error);
   }
 
   .preset-grid {
@@ -1170,19 +1177,54 @@ function copySVG(variant, btn) {
 }
 
 // ── Color Sync ────────────────────────────────────────────────────────
+function deselectPreset() {
+  document.getElementById('presetGrid').querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+}
+
+function parseHexColor(value) {
+  let v = value.trim();
+  if (!v.startsWith('#')) v = '#' + v;
+  if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+    v = '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+  }
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toUpperCase();
+  return null;
+}
+
 function syncColor(pickerId, hexId) {
   const picker = document.getElementById(pickerId);
   const hex = document.getElementById(hexId);
+  let fromPicker = false;
 
-  picker.addEventListener('input', () => { hex.value = picker.value.toUpperCase(); render(); });
+  picker.addEventListener('input', () => {
+    fromPicker = true;
+    hex.value = picker.value.toUpperCase();
+    hex.classList.remove('invalid');
+    render();
+    fromPicker = false;
+  });
   hex.addEventListener('input', () => {
-    const v = hex.value;
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { picker.value = v; render(); }
+    if (fromPicker) return;
+    deselectPreset();
+    const color = parseHexColor(hex.value);
+    hex.classList.toggle('invalid', !color && hex.value.trim() !== '');
+    if (color) {
+      picker.value = color;
+      render();
+    }
   });
   hex.addEventListener('change', () => {
-    let v = hex.value;
-    if (!v.startsWith('#')) v = '#' + v;
-    if (/^#[0-9a-fA-F]{6}$/.test(v)) { hex.value = v.toUpperCase(); picker.value = v; render(); }
+    if (fromPicker) return;
+    deselectPreset();
+    const color = parseHexColor(hex.value);
+    if (color) {
+      hex.value = color;
+      hex.classList.remove('invalid');
+      picker.value = color;
+      render();
+    } else {
+      hex.classList.add('invalid');
+    }
   });
 }
 
