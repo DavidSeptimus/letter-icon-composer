@@ -426,6 +426,12 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .footer a {
+    color: var(--text-dim);
+    text-decoration: underline;
+    text-decoration-color: rgba(144,144,176,0.4);
+  }
+  .footer a:hover { color: var(--text); text-decoration-color: var(--text); }
 </style>
 </head>
 <body>
@@ -638,7 +644,10 @@
   </div>
 </div>
 
-<footer class="footer">This site is not affiliated with JetBrains s.r.o.</footer>
+<footer class="footer">
+  Licensed under <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">Apache 2.0</a>
+  &middot; This site is not affiliated with JetBrains s.r.o.
+</footer>
 
 <script type="module">
 import {
