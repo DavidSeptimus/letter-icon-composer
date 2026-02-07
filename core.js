@@ -14,14 +14,15 @@ export const PRESETS = [
   { name: 'Green',  lightFill: '#F2FCF3', lightStroke: '#208A3C', darkFill: '#253627', darkStroke: '#57965C', official: true },
   { name: 'Amber',  lightFill: '#FFFAEB', lightStroke: '#C27D04', darkFill: '#3D3223', darkStroke: '#D6AE58', official: true },
   // Custom extras
-  { name: 'Gold',   lightFill: '#FFF4E6', lightStroke: '#E8A838', darkFill: '#3D3019', darkStroke: '#FFB74D', official: false },
   { name: 'Grey',   lightFill: '#F0F0F0', lightStroke: '#757575', darkFill: '#303030', darkStroke: '#9E9E9E', official: false },
   { name: 'Teal',   lightFill: '#E0F2F1', lightStroke: '#00796B', darkFill: '#1A3230', darkStroke: '#4DB6AC', official: false },
   { name: 'Pink',   lightFill: '#FCE4EC', lightStroke: '#AD1457', darkFill: '#3B2430', darkStroke: '#F06292', official: false },
 ];
 
 // ── Shape Generators ─────────────────────────────────────────────────
-// Each shape has a generator function and metadata for the UI.
+// Each shape generator receives (fill, stroke, strokeWidth, center) where
+// center = viewBoxSize / 2.  Shapes must fit within a 1px transparent
+// border, i.e. from 1 to viewBoxSize-1.
 // Official shapes are derived from JetBrains expUI icons.
 export const SHAPES = {
   // ── Official (JetBrains expUI) ──
@@ -29,17 +30,17 @@ export const SHAPES = {
     official: true,
     label: 'Circle',
     preview: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1"/>',
-    generate: (fill, stroke, sw) =>
-      `<circle cx="8" cy="8" r="${7 - sw/2}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
+    generate: (fill, stroke, sw, c) =>
+      `<circle cx="${c}" cy="${c}" r="${c - 1 - sw/2}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
   },
 
   roundrect: {
     official: true,
     label: 'Rounded Rect',
     preview: '<rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1"/>',
-    generate: (fill, stroke, sw) => {
+    generate: (fill, stroke, sw, c) => {
       const inset = 1.5 + sw/2;
-      const size = 16 - 2*inset;
+      const size = 2 * (c - 1.5) - sw;
       return `<rect x="${inset}" y="${inset}" width="${size}" height="${size}" rx="1.5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
     },
   },
@@ -48,32 +49,36 @@ export const SHAPES = {
     official: true,
     label: 'Diamond',
     viewBoxSize: 18,
-    preview: '<rect x="3.13" y="3.13" width="9.75" height="9.75" rx="0.5" transform="rotate(45 8 8)" fill="none" stroke="currentColor" stroke-width="1"/>',
-    generate: (fill, stroke, sw) => {
-      const halfDiag = 7.4 - sw/2;
+    targetHeight: 6.3,
+    preview: '<rect x="4.13" y="4.13" width="9.75" height="9.75" rx="0.5" transform="rotate(45 9 9)" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw, c) => {
+      const halfDiag = c - 1 - sw/2;
       const side = Math.round(halfDiag * Math.SQRT2 * 100) / 100;
-      const offset = Math.round((8 - side/2) * 100) / 100;
-      return `<rect x="${offset}" y="${offset}" width="${side}" height="${side}" rx="0.5" transform="rotate(45 8 8)" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+      const offset = Math.round((c - side/2) * 100) / 100;
+      return `<rect x="${offset}" y="${offset}" width="${side}" height="${side}" rx="0.5" transform="rotate(45 ${c} ${c})" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
     },
   },
 
   'rounded-diamond': {
     official: true,
     label: 'Rounded Diamond',
-    preview: '<rect x="3.34" y="3.34" width="9.32" height="9.32" rx="1.5" transform="rotate(45 8 8)" fill="none" stroke="currentColor" stroke-width="1"/>',
-    generate: (fill, stroke, sw) => {
-      const halfDiag = 7 - sw/2;
+    viewBoxSize: 18,
+    targetHeight: 6.3,
+    preview: '<rect x="4.34" y="4.34" width="9.32" height="9.32" rx="1.5" transform="rotate(45 9 9)" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw, c) => {
+      const halfDiag = c - 1 - sw/2;
       const side = Math.round(halfDiag * Math.SQRT2 * 100) / 100;
-      const offset = Math.round((8 - side/2) * 100) / 100;
-      return `<rect x="${offset}" y="${offset}" width="${side}" height="${side}" rx="1.5" transform="rotate(45 8 8)" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+      const offset = Math.round((c - side/2) * 100) / 100;
+      return `<rect x="${offset}" y="${offset}" width="${side}" height="${side}" rx="1.5" transform="rotate(45 ${c} ${c})" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
     },
   },
 
   shield: {
     official: true,
     label: 'Shield',
+    targetHeight: 6.3,
     preview: '<path d="M2.5 3.83L8 1.54L13.5 3.83V9.18C13.5 10.75 12.71 11.92 11.63 12.89C10.83 13.6 9.85 14.23 8.9 14.82L8 15.4L7.1 14.82C6.15 14.23 5.17 13.6 4.37 12.89C3.29 11.92 2.5 10.75 2.5 9.18V3.83Z" fill="none" stroke="currentColor" stroke-width="1"/>',
-    generate: (fill, stroke, sw) =>
+    generate: (fill, stroke, sw, c) =>
       `<path d="M2.5 3.83333L8 1.54167L13.5 3.83333L13.5 9.17871C13.5 10.7502 12.7145 11.9168 11.6339 12.8852C10.8323 13.6036 9.84849 14.226 8.90452 14.8218L8.9021 14.8233C8.59264 15.0186 8.28712 15.2115 8 15.4009C7.71296 15.2115 7.40754 15.0187 7.09817 14.8235L7.09548 14.8218C6.15151 14.226 5.16769 13.6036 4.36607 12.8852C3.28548 11.9168 2.5 10.7502 2.5 9.17871V3.83333Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
   },
 
@@ -81,7 +86,7 @@ export const SHAPES = {
     official: true,
     label: 'Dashed Circle',
     preview: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 2"/>',
-    generate: (fill, stroke, sw) =>
+    generate: (fill, stroke, sw, c) =>
       `<path d="M12.9498 3.05025C15.6835 5.78392 15.6835 10.2161 12.9498 12.9497C10.2162 15.6834 5.784 15.6834 3.05033 12.9497C0.316663 10.2161 0.316663 5.78392 3.05033 3.05025C5.784 0.316582 10.2162 0.316583 12.9498 3.05025Z" fill="${fill}"/>` +
       `\n  <path fill-rule="evenodd" clip-rule="evenodd" d="M14.9144 6.90481L13.9266 7.06045C13.736 5.85124 13.1756 4.69027 12.2427 3.75736C11.3098 2.82445 10.1488 2.26404 8.93963 2.07352L9.09527 1.0857C10.5063 1.30802 11.8624 1.96287 12.9498 3.05025C14.0372 4.13763 14.6921 5.49375 14.9144 6.90481ZM6.90489 1.0857L7.06053 2.07352C5.85132 2.26404 4.69035 2.82445 3.75744 3.75736C2.82453 4.69027 2.26412 5.85124 2.0736 7.06045L1.08579 6.90481C1.30811 5.49375 1.96295 4.13763 3.05033 3.05025C4.13771 1.96287 5.49383 1.30802 6.90489 1.0857ZM1.08579 9.09519C1.30811 10.5063 1.96295 11.8624 3.05033 12.9497C4.13771 14.0371 5.49383 14.692 6.90489 14.9143L7.06053 13.9265C5.85132 13.736 4.69035 13.1755 3.75744 12.2426C2.82453 11.3097 2.26412 10.1488 2.0736 8.93955L1.08579 9.09519ZM9.09527 14.9143L8.93963 13.9265C10.1488 13.736 11.3098 13.1755 12.2427 12.2426C13.1756 11.3097 13.736 10.1488 13.9266 8.93955L14.9144 9.09519C14.6921 10.5063 14.0372 11.8624 12.9498 12.9497C11.8624 14.0371 10.5063 14.692 9.09527 14.9143Z" fill="${stroke}"/>`,
   },
@@ -90,7 +95,7 @@ export const SHAPES = {
     official: true,
     label: 'Dashed Rect',
     preview: '<rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 2"/>',
-    generate: (fill, stroke, sw) =>
+    generate: (fill, stroke, sw, c) =>
       `<path d="M2 4C2 2.89543 2.89543 2 4 2H12C13.1046 2 14 2.89543 14 4V12C14 13.1046 13.1046 14 12 14H4C2.89543 14 2 13.1046 2 12V4Z" fill="${fill}"/>` +
       `\n  <path d="M9 3H12C12.5523 3 13 3.44772 13 4V7H14V4C14 2.89543 13.1046 2 12 2H9V3Z" fill="${stroke}"/>` +
       `\n  <path d="M7 3V2H4C2.89543 2 2 2.89543 2 4V7H3V4C3 3.44772 3.44772 3 4 3H7Z" fill="${stroke}"/>` +
@@ -102,8 +107,11 @@ export const SHAPES = {
   composite: {
     official: false,
     label: 'Composite',
+    targetHeight: 5.0,
+    defaultXOffset: -1.5,
+    defaultYOffset: 1.5,
     preview: '<rect x="2" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1"/><path d="M13 10V3.5C13 2.67 12.33 2 11.5 2H5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>',
-    generate: (fill, stroke, sw) =>
+    generate: (fill, stroke, sw, c) =>
       `<path d="M13 10V3.5C13 2.67 12.33 2 11.5 2H5" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round"/>` +
       `\n  <rect x="2" y="5" width="9" height="9" rx="1.5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
   },
@@ -111,18 +119,21 @@ export const SHAPES = {
   hexagon: {
     official: false,
     label: 'Hexagon',
-    preview: '<path d="M8 2L13 4.5v6L8 13L3 10.5v-6Z" fill="none" stroke="currentColor" stroke-width="1"/>',
-    generate: (fill, stroke, sw) =>
-      `<path d="M8 2L13 4.5v6L8 13L3 10.5v-6Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
+    targetHeight: 5.5,
+    preview: '<path d="M8 2.5L13 5v6L8 13.5L3 11v-6Z" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw, c) =>
+      `<path d="M8 2.5L13 5v6L8 13.5L3 11v-6Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
   },
 
   document: {
     official: false,
     label: 'Document',
-    preview: '<path d="M3.5 2.5h6.5l3 3v7.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1"/>',
-    generate: (fill, stroke, sw) =>
-      `<path d="M3.5 2.5h6.5l3 3v7.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>` +
-      `\n  <path d="M10 2.5v3h3" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round"/>`,
+    targetHeight: 5.5,
+    defaultYOffset: 1,
+    preview: '<path d="M3.75 2.25h6.5l3 3v7.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw, c) =>
+      `<path d="M3.75 2.25h6.5l3 3v7.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>` +
+      `\n  <path d="M10.25 2.25v3h3" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round"/>`,
   },
 };
 
@@ -157,8 +168,8 @@ export function getGoogleFontUrl(name, weight, bold, italic) {
 
 // ── Font Size Calibration ────────────────────────────────────────────
 /**
- * Computes the fontSize that produces a ~7-unit tall glyph in a 16x16
- * viewBox, matching JetBrains icon conventions.  When a letter is
+ * Computes the fontSize that produces a glyph of the given target height
+ * in SVG units, matching JetBrains icon conventions.  When a letter is
  * provided the *actual* glyph height is used for calibration, so
  * lowercase characters are scaled up to the same visual height as
  * uppercase ones.
@@ -168,8 +179,8 @@ export function getGoogleFontUrl(name, weight, bold, italic) {
  * @returns {number} The calibrated font size
  */
 export function calibrateFontSize(font, letter = 'E', targetHeight = 7.0) {
-  const testStr = (letter && letter.length > 0) ? letter : 'E';
-  const testPath = font.getPath(testStr, 0, 0, 100);
+  // Always calibrate against cap height ('E') for consistent stroke weight
+  const testPath = font.getPath('E', 0, 0, 100);
   const bb = testPath.getBoundingBox();
   const heightAt100 = bb.y2 - bb.y1;
   if (heightAt100 <= 0) return 7.0;
@@ -217,8 +228,10 @@ export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff 
 // ── Full SVG Assembly ────────────────────────────────────────────────
 /**
  * Generates a complete SVG icon with shape background and letter overlay.
- * The viewBox is 16x16 by default but expands automatically for scaled-up
- * shapes or shapes that declare a larger native size (e.g. diamond → 18).
+ * The viewBox is 16x16 by default but expands automatically for shapes
+ * that declare a larger native size (e.g. diamond → 18x18).
+ * All shapes are sized to leave a 1px transparent border:
+ * 16x16 → 14x14 content area, 18x18 → 16x16 content area.
  * @param {object} params
  * @param {object} params.font - An opentype.js Font object
  * @param {string} params.letter - The letter(s) to render
@@ -251,21 +264,34 @@ export function generateSVG({
     return { svg: '', error: `Unknown shape: "${shape}". Valid shapes: ${Object.keys(SHAPES).join(', ')}`, viewBoxSize: 16 };
   }
 
-  const scale = shapeScale ?? shapeDef.defaultScale ?? 1.0;
   const baseViewBox = shapeDef.viewBoxSize ?? 16;
-  const viewBoxSize = Math.max(baseViewBox, Math.ceil(16 * scale));
+  const scale = shapeScale ?? shapeDef.defaultScale ?? 1.0;
+  const nativeCenter = baseViewBox / 2;
+
+  // Compute viewBox — expand when scaling up
+  let viewBoxSize;
+  if (scale === 1.0) {
+    viewBoxSize = baseViewBox;
+  } else {
+    const scaledHalf = scale * (nativeCenter - 1);
+    viewBoxSize = Math.max(baseViewBox, Math.ceil(2 * scaledHalf + 2));
+  }
   const center = viewBoxSize / 2;
 
-  const size = fontSize ?? (font ? calibrateFontSize(font, letter) : 7.0);
-  let shapeMarkup = shapeDef.generate(fill, stroke, strokeWidth);
+  const targetHeight = shapeDef.targetHeight ?? 7.0;
+  const size = fontSize ?? (font ? calibrateFontSize(font, letter, targetHeight) : targetHeight);
 
-  // Center and scale shape geometry (designed for 16x16) within the viewBox
-  const needsTransform = scale !== 1.0 || center !== 8;
-  if (needsTransform) {
-    shapeMarkup = `<g transform="translate(${center} ${center}) scale(${scale}) translate(-8 -8)">\n    ${shapeMarkup}\n  </g>`;
+  // Generate shape at its native center (coordinates sized for 1px border)
+  let shapeMarkup = shapeDef.generate(fill, stroke, strokeWidth, nativeCenter);
+
+  // Apply scale transform only when scale != 1.0
+  if (scale !== 1.0) {
+    shapeMarkup = `<g transform="translate(${center} ${center}) scale(${scale}) translate(-${nativeCenter} -${nativeCenter})">\n    ${shapeMarkup}\n  </g>`;
   }
 
-  const { path: letterMarkup, error } = generateLetterPath(font, letter, letterColor, size, xOffset, yOffset, center);
+  const xOff = xOffset + (shapeDef.defaultXOffset ?? 0);
+  const yOff = yOffset + (shapeDef.defaultYOffset ?? 0);
+  const { path: letterMarkup, error } = generateLetterPath(font, letter, letterColor, size, xOff, yOff, center);
 
   const svg = `<svg width="${viewBoxSize}" height="${viewBoxSize}" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" fill="none" xmlns="http://www.w3.org/2000/svg">
   ${shapeMarkup}

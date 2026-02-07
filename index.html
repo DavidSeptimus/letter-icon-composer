@@ -6,7 +6,7 @@
 <title>Letter Icon Composer</title>
 <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
 <style>
-  :root {
+  [data-theme="purple"] {
     --bg: #1e1e2e;
     --surface: #282840;
     --surface2: #32324a;
@@ -16,7 +16,31 @@
     --accent: #7c8aff;
     --accent-hover: #9aa4ff;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root, [data-theme="islands-dark"] {
+    --bg: #1E1F22;
+    --surface: #26282b;
+    --surface2: #2B2D30;
+    --border: #393B40;
+    --text: #D1D3D9;
+    --text-dim: #9da0a8;
+    --accent: #3574F0;
+    --accent-hover: #467FF2;
+  }
+  [data-theme="islands-light"] {
+    --bg: #EBECF0;
+    --surface: #F7F8FA;
+    --surface2: #FFFFFF;
+    --border: #DFE1E5;
+    --text: #27282E;
+    --text-dim: #6C707E;
+    --accent: #3574F0;
+    --accent-hover: #315FBD;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; scrollbar-color: var(--border) transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
     background: var(--bg);
@@ -290,7 +314,7 @@
     border: 1px solid var(--border);
     color: var(--text);
   }
-  .btn-secondary:hover { border-color: var(--accent); }
+  .btn-secondary:hover { background: var(--surface2); }
 
   /* SVG Code panel */
   .code-panel {
@@ -442,6 +466,10 @@
     <p class="subtitle">Generate composite letter-on-shape SVG icons for IntelliJ structure &amp; completion views</p>
   </div>
   <div class="socials">
+    <button class="style-toggle" id="themeToggle" title="Toggle site theme" style="width:auto;padding:0 8px;font-size:11px;gap:4px">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM2 8a6 6 0 0112 0A6 6 0 012 8zm6-4.5v9a4.5 4.5 0 000-9z"/></svg>
+      <span id="themeLabel">Islands Dark</span>
+    </button>
     <a href="https://github.com/DavidSeptimus/letter-icon-composer" target="_blank" title="GitHub">
       <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     </a>
@@ -685,9 +713,19 @@ let currentFontKey = 'open-sans';
 function calibrateFontSize() {
   if (!currentFont) return;
   const letter = document.getElementById('letter').value;
-  const calibrated = calibrateFontSizeCore(currentFont, letter);
+  const targetHeight = SHAPES[currentShape]?.targetHeight ?? 7.0;
+  const calibrated = calibrateFontSizeCore(currentFont, letter, targetHeight);
   document.getElementById('fontSize').value = calibrated;
   document.getElementById('fontSizeVal').textContent = calibrated.toFixed(1);
+}
+
+function saveFontSetting() {
+  const setting = { key: currentFontKey };
+  if (currentFontKey === 'google-fonts') {
+    setting.name = document.getElementById('googleFontName').value;
+    setting.weight = document.getElementById('googleFontWeight').value;
+  }
+  localStorage.setItem('font-setting', JSON.stringify(setting));
 }
 
 async function loadFont(key) {
@@ -708,6 +746,7 @@ async function loadFont(key) {
     currentFont = await opentype.load(url);
     calibrateFontSize();
     clearError();
+    saveFontSetting();
     render();
   } catch (e) {
     console.error('Failed to load font:', e);
@@ -746,6 +785,7 @@ async function loadSystemFont(family) {
         currentFont = opentype.parse(buf);
         calibrateFontSize();
         clearError();
+        saveFontSetting();
         render();
         return;
       }
@@ -928,7 +968,8 @@ function buildShapes() {
     btn.className = 'shape-btn' + (i === 0 ? ' active' : '');
     btn.dataset.shape = key;
     btn.title = shape.official ? `JetBrains expUI — ${shape.label}` : `Custom — ${shape.label}`;
-    btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 16 16">${shape.preview}</svg>\n${shape.label}`;
+    const vb = shape.viewBoxSize ?? 16;
+    btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 ${vb} ${vb}">${shape.preview}</svg>\n${shape.label}`;
     grid.appendChild(btn);
   });
 }
@@ -942,6 +983,7 @@ document.getElementById('shapeGrid').addEventListener('click', e => {
   const defaultScale = SHAPES[currentShape].defaultScale ?? 1.0;
   document.getElementById('shapeScale').value = defaultScale;
   document.getElementById('shapeScaleVal').textContent = defaultScale.toFixed(2);
+  calibrateFontSize();
   render();
 });
 
@@ -980,6 +1022,7 @@ async function loadGoogleFont() {
       status.innerHTML = `Loaded <b>${name}</b> (${effectiveWeight} ${fontStyle}) from fontsource`;
       loaded = true;
       clearError();
+      saveFontSetting();
       render();
       break;
     } catch (e) {
@@ -1123,6 +1166,33 @@ document.querySelectorAll('details.section').forEach(details => {
   });
 });
 
+// ── Site Theme Toggle ─────────────────────────────────────────────────
+const themes = [
+  { key: 'islands-dark', label: 'Islands Dark' },
+  { key: 'islands-light', label: 'Islands Light' },
+  { key: 'purple', label: 'Purple' },
+];
+let currentThemeIndex = 0;
+
+function applyTheme(index) {
+  currentThemeIndex = index;
+  const theme = themes[index];
+  document.documentElement.setAttribute('data-theme', theme.key);
+  document.getElementById('themeLabel').textContent = theme.label;
+  localStorage.setItem('site-theme', theme.key);
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  applyTheme((currentThemeIndex + 1) % themes.length);
+});
+
+// Restore saved theme
+const savedTheme = localStorage.getItem('site-theme');
+if (savedTheme) {
+  const idx = themes.findIndex(t => t.key === savedTheme);
+  if (idx >= 0) applyTheme(idx);
+}
+
 // ── Init ──────────────────────────────────────────────────────────────
 syncColor('lightFill', 'lightFillHex');
 syncColor('lightStroke', 'lightStrokeHex');
@@ -1137,7 +1207,22 @@ bindSlider('strokeWidth', 'strokeWidthVal');
 
 buildShapes();
 buildPresets();
-loadFont('open-sans');
+
+// Restore saved font or default to open-sans
+const savedFont = JSON.parse(localStorage.getItem('font-setting') || 'null');
+if (savedFont) {
+  document.getElementById('fontSelect').value = savedFont.key;
+  if (savedFont.key === 'google-fonts') {
+    document.getElementById('googleFontsRow').style.display = 'block';
+    document.getElementById('googleFontName').value = savedFont.name || '';
+    document.getElementById('googleFontWeight').value = savedFont.weight || '600';
+    loadGoogleFont();
+  } else {
+    loadFont(savedFont.key);
+  }
+} else {
+  loadFont('open-sans');
+}
 </script>
 
 </body>
