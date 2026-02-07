@@ -28,6 +28,8 @@ try {
   process.exit(1);
 }
 
+import { optimize } from 'svgo';
+
 import {
   PRESETS,
   SHAPES,
@@ -214,6 +216,35 @@ async function loadFont() {
   return font;
 }
 
+// ── SVG Optimization ─────────────────────────────────────────────────
+const svgoConfig = {
+  multipass: true,
+  plugins: [
+    {
+      name: 'preset-default',
+      params: {
+        overrides: {
+          inlineStyles: false,
+          removeViewBox: false,
+          cleanupEnableBackground: false,
+          removeHiddenElems: false,
+          convertShapeToPath: false,
+          moveElemsAttrsToGroup: false,
+          moveGroupAttrsToElems: false,
+          convertPathData: false,
+        },
+      },
+    },
+    'convertStyleToAttrs',
+    'cleanupListOfValues',
+    'sortAttrs',
+  ],
+};
+
+function optimizeSVG(svgString) {
+  return optimize(svgString, svgoConfig).data;
+}
+
 // ── Generate ─────────────────────────────────────────────────────────
 const font = await loadFont();
 
@@ -248,18 +279,21 @@ for (const r of [lightResult, darkResult]) {
   }
 }
 
+const lightSVG = optimizeSVG(lightResult.svg);
+const darkSVG = optimizeSVG(darkResult.svg);
+
 // ── Output ───────────────────────────────────────────────────────────
 const baseName = args.name || args.letter.toLowerCase();
 
 if (args.stdout) {
   if (!args['dark-only']) {
     console.log(`<!-- ${baseName}.svg (light) -->`);
-    console.log(lightResult.svg);
+    console.log(lightSVG);
   }
   if (!args['light-only']) {
     if (!args['dark-only']) console.log();
     console.log(`<!-- ${baseName}_dark.svg (dark) -->`);
-    console.log(darkResult.svg);
+    console.log(darkSVG);
   }
 } else {
   const outDir = resolve(args.out);
@@ -269,13 +303,13 @@ if (args.stdout) {
 
   if (!args['dark-only']) {
     const lightPath = join(outDir, `${baseName}.svg`);
-    await writeFile(lightPath, lightResult.svg + '\n');
+    await writeFile(lightPath, lightSVG + '\n');
     written.push(lightPath);
   }
 
   if (!args['light-only']) {
     const darkPath = join(outDir, `${baseName}_dark.svg`);
-    await writeFile(darkPath, darkResult.svg + '\n');
+    await writeFile(darkPath, darkSVG + '\n');
     written.push(darkPath);
   }
 

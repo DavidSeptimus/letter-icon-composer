@@ -357,10 +357,20 @@
     border-radius: 10px;
     padding: 16px;
   }
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
   .code-tabs {
     display: flex;
     gap: 0;
-    margin-bottom: 12px;
+  }
+  .file-size {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    color: var(--text-dim);
   }
   .code-tab {
     background: var(--surface2);
@@ -490,6 +500,58 @@
     text-decoration-color: rgba(144,144,176,0.4);
   }
   .footer a:hover { color: var(--text); text-decoration-color: var(--text); }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 0;
+  }
+  .toggle-row input { display: none; }
+  .toggle-switch {
+    width: 32px;
+    height: 18px;
+    background: var(--border);
+    border-radius: 9px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: var(--surface2);
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle-row input:checked + .toggle-switch {
+    background: var(--accent);
+  }
+  .toggle-row input:checked + .toggle-switch::after {
+    transform: translateX(14px);
+  }
+
+  .footer-how {
+    max-width: 520px;
+    margin: 0 auto 16px;
+    line-height: 1.6;
+  }
+  .footer-how summary {
+    cursor: pointer;
+    list-style: none;
+    text-decoration: underline;
+    text-decoration-color: rgba(144,144,176,0.4);
+    transition: color 0.15s, text-decoration-color 0.15s;
+  }
+  .footer-how summary:hover { color: var(--text); text-decoration-color: var(--text); }
+  .footer-how summary::-webkit-details-marker { display: none; }
+  .footer-how p { margin-top: 8px; text-align: left; }
 </style>
 </head>
 <body>
@@ -594,9 +656,12 @@
     </div>
 
     <div class="code-panel">
-      <div class="code-tabs">
-        <button class="code-tab active" data-tab="light" id="tabLight">Light SVG</button>
-        <button class="code-tab" data-tab="dark" id="tabDark">Dark SVG</button>
+      <div class="code-header">
+        <div class="code-tabs">
+          <button class="code-tab active" data-tab="light" id="tabLight">Light SVG</button>
+          <button class="code-tab" data-tab="dark" id="tabDark">Dark SVG</button>
+        </div>
+        <span class="file-size" id="fileSize"></span>
       </div>
       <div class="code-block" id="codeBlock"></div>
     </div>
@@ -613,6 +678,35 @@
   <!-- Right Panel -->
   <div>
     <div class="panel">
+      <details class="section" open>
+        <summary class="section-title">Font</summary>
+        <select id="fontSelect">
+          <option value="open-sans" selected>Open Sans (JetBrains recommended)</option>
+          <option value="arial">Arial</option>
+          <option value="inter">Inter</option>
+          <option value="google-fonts">Google Fonts...</option>
+          <option value="custom">Import custom .ttf/.otf</option>
+        </select>
+        <div id="googleFontsRow" style="display:none; margin-top:8px;">
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="googleFontName" placeholder="e.g. Roboto, Fira Sans" style="flex:1">
+            <select id="googleFontWeight" style="width:90px">
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600" selected>SemiBold</option>
+              <option value="700">Bold</option>
+            </select>
+            <button class="btn" id="googleFontLoad" style="padding:6px 10px; white-space:nowrap">Load</button>
+          </div>
+          <div id="googleFontStatus" class="font-info" style="margin-top:4px"></div>
+        </div>
+        <input type="file" id="fontFile" accept=".ttf,.otf,.woff" style="display:none">
+        <div class="font-info">
+          JetBrains recommends <b>Arial</b> or <b>Open Sans</b> for icon letters.
+          <a href="https://plugins.jetbrains.com/docs/intellij/icons-style.html" target="_blank">Guidelines</a>
+        </div>
+      </details>
+
       <details class="section" open>
         <summary class="section-title">Light Theme Colors</summary>
         <div class="color-row">
@@ -686,51 +780,43 @@
       </details>
 
       <details class="section" open>
-        <summary class="section-title">Font</summary>
-        <select id="fontSelect">
-          <option value="open-sans" selected>Open Sans (JetBrains recommended)</option>
-          <option value="arial">Arial</option>
-          <option value="inter">Inter</option>
-          <option value="google-fonts">Google Fonts...</option>
-          <option value="custom">Upload custom .ttf/.otf</option>
-        </select>
-        <div id="googleFontsRow" style="display:none; margin-top:8px;">
-          <div style="display:flex; gap:6px;">
-            <input type="text" id="googleFontName" placeholder="e.g. Roboto, Fira Sans" style="flex:1">
-            <select id="googleFontWeight" style="width:90px">
-              <option value="400">Regular</option>
-              <option value="500">Medium</option>
-              <option value="600" selected>SemiBold</option>
-              <option value="700">Bold</option>
-            </select>
-            <button class="btn" id="googleFontLoad" style="padding:6px 10px; white-space:nowrap">Load</button>
-          </div>
-          <div id="googleFontStatus" class="font-info" style="margin-top:4px"></div>
-        </div>
-        <input type="file" id="fontFile" accept=".ttf,.otf,.woff" style="display:none">
-        <div class="font-info">
-          JetBrains recommends <b>Arial</b> or <b>Open Sans</b> for icon letters.
-          <a href="https://plugins.jetbrains.com/docs/intellij/icons-style.html" target="_blank">Guidelines</a>
-        </div>
-      </details>
-
-      <details class="section" open>
         <summary class="section-title">File Name</summary>
         <input type="text" id="fileName" value="icon" placeholder="e.g. myNode">
         <div class="font-info" style="margin-top:4px">
           Downloads as <code>{name}.svg</code> and <code>{name}_dark.svg</code>
         </div>
       </details>
+
+      <div class="section" style="margin-top:20px">
+        <label class="toggle-row">
+          <span>Optimize with SVGO</span>
+          <input type="checkbox" id="toggleOptimize" checked>
+          <span class="toggle-switch"></span>
+        </label>
+      </div>
     </div>
   </div>
 </div>
 
 <footer class="footer">
+  <details class="footer-how">
+    <summary>How it works</summary>
+    <p>
+      Letter shapes are rendered from real font outlines using
+      <a href="https://opentype.js.org" target="_blank">opentype.js</a>,
+      which converts TrueType/OpenType glyphs into SVG path data.
+      The path is composited onto a background shape, and
+      <a href="https://svgo.dev" target="_blank">SVGO</a>
+      optimizes the final SVG so it stays compact when committed to a codebase.
+      Everything runs client-side — no server, no uploads.
+    </p>
+  </details>
   Licensed under <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">Apache 2.0</a>
   &middot; This site is not affiliated with JetBrains s.r.o.
 </footer>
 
 <script type="module">
+import { optimize as svgoOptimize } from 'https://cdn.jsdelivr.net/npm/svgo@3/dist/svgo.browser.js';
 import {
   PRESETS,
   SHAPES,
@@ -748,6 +834,41 @@ let activeTab = 'light';
 let svgLight = '';
 let svgDark = '';
 let styles = { bold: false, italic: false };
+let svgoEnabled = localStorage.getItem('svgo-enabled') !== 'false';
+
+// ── SVG Optimization ──────────────────────────────────────────────────
+const svgoConfig = {
+  multipass: true,
+  plugins: [
+    {
+      name: 'preset-default',
+      params: {
+        overrides: {
+          inlineStyles: false,
+          removeViewBox: false,
+          cleanupEnableBackground: false,
+          removeHiddenElems: false,
+          convertShapeToPath: false,
+          moveElemsAttrsToGroup: false,
+          moveGroupAttrsToElems: false,
+          convertPathData: false,
+        },
+      },
+    },
+    'convertStyleToAttrs',
+    'cleanupListOfValues',
+    'sortAttrs',
+  ],
+};
+
+function optimizeSVG(svgString) {
+  if (!svgoEnabled) return svgString;
+  try {
+    return svgoOptimize(svgString, svgoConfig).data;
+  } catch {
+    return svgString;
+  }
+}
 
 // ── Error Reporting ───────────────────────────────────────────────────
 function showError(message) {
@@ -916,8 +1037,8 @@ function render() {
   const darkStroke = document.getElementById('darkStroke').value;
   const sw = parseFloat(document.getElementById('strokeWidth').value);
 
-  svgLight = generateSVG(lightFill, lightStroke, lightStroke, sw);
-  svgDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
+  svgLight = optimizeSVG(generateSVG(lightFill, lightStroke, lightStroke, sw));
+  svgDark = optimizeSVG(generateSVG(darkFill, darkStroke, darkStroke, sw));
 
   // Zoomed previews (128x128) — use regex to handle any viewBox size
   const zoomRe = /width="\d+" height="\d+"/;
@@ -948,6 +1069,7 @@ function render() {
 function updateCodeBlock() {
   const code = activeTab === 'light' ? svgLight : svgDark;
   document.getElementById('codeBlock').textContent = code;
+  document.getElementById('fileSize').textContent = new Blob([code]).size + ' B';
 }
 
 function switchTab(tab) {
@@ -1017,7 +1139,7 @@ function buildPresets() {
     }
     const btn = document.createElement('button');
     btn.className = 'preset-btn' + (i === 0 ? ' active' : '');
-    btn.innerHTML = `<span class="preset-swatch" style="background:${p.lightFill};color:${p.lightStroke}"></span>${p.name}`;
+    btn.innerHTML = `<span class="preset-swatch" data-light-fill="${p.lightFill}" data-light-stroke="${p.lightStroke}" data-dark-fill="${p.darkFill}" data-dark-stroke="${p.darkStroke}"></span>${p.name}`;
     btn.title = p.official ? `JetBrains expUI — ${p.name}` : `Custom — ${p.name}`;
     btn.addEventListener('click', () => {
       grid.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
@@ -1191,6 +1313,11 @@ function setPreviewToggle(btnId, className, storageKey) {
 
 document.getElementById('toggleCheckerboard').addEventListener('click', () => setPreviewToggle('toggleCheckerboard', 'checkerboard', 'preview-checkerboard'));
 document.getElementById('togglePixelGrid').addEventListener('click', () => setPreviewToggle('togglePixelGrid', 'show-grid', 'preview-grid'));
+document.getElementById('toggleOptimize').addEventListener('change', (e) => {
+  svgoEnabled = e.target.checked;
+  localStorage.setItem('svgo-enabled', svgoEnabled);
+  render();
+});
 
 // ── Button Event Bindings ─────────────────────────────────────────────
 document.getElementById('copyLight').addEventListener('click', e => copySVG('light', e.target));
@@ -1263,6 +1390,15 @@ document.querySelectorAll('details.section').forEach(details => {
   });
 });
 
+// ── Preset Swatch Colors ──────────────────────────────────────────────
+function updatePresetSwatches(themeKey) {
+  const useLight = themeKey === 'islands-light';
+  document.querySelectorAll('.preset-swatch').forEach(s => {
+    s.style.background = useLight ? s.dataset.lightFill : s.dataset.darkFill;
+    s.style.color = useLight ? s.dataset.lightStroke : s.dataset.darkStroke;
+  });
+}
+
 // ── Site Theme Toggle ─────────────────────────────────────────────────
 const themes = [
   { key: 'islands-dark', label: 'Islands Dark' },
@@ -1277,6 +1413,7 @@ function applyTheme(index) {
   document.documentElement.setAttribute('data-theme', theme.key);
   document.getElementById('themeLabel').textContent = theme.label;
   localStorage.setItem('site-theme', theme.key);
+  updatePresetSwatches(theme.key);
 }
 
 document.getElementById('themeToggle').addEventListener('click', () => {
@@ -1304,6 +1441,7 @@ bindSlider('strokeWidth', 'strokeWidthVal');
 
 buildShapes();
 buildPresets();
+updatePresetSwatches(themes[currentThemeIndex].key);
 
 // Restore preview toggles
 if (localStorage.getItem('preview-checkerboard') === 'true') {
@@ -1314,6 +1452,7 @@ if (localStorage.getItem('preview-grid') === 'true') {
   document.getElementById('togglePixelGrid').classList.add('active');
   document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('show-grid'));
 }
+document.getElementById('toggleOptimize').checked = svgoEnabled;
 
 // Restore saved font or default to open-sans
 const savedFont = JSON.parse(localStorage.getItem('font-setting') || 'null');
