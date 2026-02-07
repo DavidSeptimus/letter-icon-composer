@@ -564,14 +564,23 @@
   .footer-how li { margin-bottom: 2px; }
   .footer-how .flowchart { margin-top: 14px; text-align: center; }
   .footer-how .flowchart svg { max-width: 100%; height: auto; }
+  .logo-light { display: none; }
+  .logo-dark { display: block; }
+  [data-theme="islands-light"] .logo-light { display: block; }
+  [data-theme="islands-light"] .logo-dark { display: none; }
+  .header-logo { flex-shrink: 0; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <svg class="header-logo logo-light" width="32" height="32" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6.5" fill="#E7EFFD" stroke="#3574F0"/><path fill="#3574F0" d="M7.16 4.28L7.16 11.72L6.03 11.72L6.03 4.28L7.16 4.28ZM9.33 4.40L9.33 4.40Q9.59 4.40 9.78 4.54Q9.97 4.67 9.97 5.01L9.97 5.01Q9.97 5.35 9.78 5.49Q9.59 5.63 9.33 5.63L9.33 5.63Q9.06 5.63 8.88 5.49Q8.70 5.35 8.70 5.01L8.70 5.01Q8.70 4.67 8.88 4.54Q9.06 4.40 9.33 4.40ZM8.76 6.43L9.89 6.43L9.89 11.72L8.76 11.72L8.76 6.43Z"/></svg>
+    <svg class="header-logo logo-dark" width="32" height="32" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6.5" fill="#25324D" stroke="#548AF7"/><path fill="#548AF7" d="M7.16 4.28L7.16 11.72L6.03 11.72L6.03 4.28L7.16 4.28ZM9.33 4.40L9.33 4.40Q9.59 4.40 9.78 4.54Q9.97 4.67 9.97 5.01L9.97 5.01Q9.97 5.35 9.78 5.49Q9.59 5.63 9.33 5.63L9.33 5.63Q9.06 5.63 8.88 5.49Q8.70 5.35 8.70 5.01L8.70 5.01Q8.70 4.67 8.88 4.54Q9.06 4.40 9.33 4.40ZM8.76 6.43L9.89 6.43L9.89 11.72L8.76 11.72L8.76 6.43Z"/></svg>
+    <div>
     <h1>Letter Icon Composer</h1>
     <p class="subtitle">Custom IntelliJ-style letter icons for plugin developers</p>
+    </div>
   </div>
   <div class="socials">
     <button class="style-toggle" id="themeToggle" title="Toggle site theme" style="width:auto;padding:0 8px;font-size:11px;gap:4px">
