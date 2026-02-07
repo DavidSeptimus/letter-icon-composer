@@ -397,6 +397,7 @@
     word-break: break-all;
     max-height: 200px;
     overflow-y: auto;
+    cursor: text;
   }
 
   /* Error card */
@@ -674,7 +675,7 @@
         </div>
         <span class="file-size" id="fileSize"></span>
       </div>
-      <div class="code-block" id="codeBlock"></div>
+      <div class="code-block" id="codeBlock" onclick="window.getSelection().selectAllChildren(this)"></div>
     </div>
 
     <div class="error-card" id="errorCard" style="display:none">
