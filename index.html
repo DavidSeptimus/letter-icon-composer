@@ -622,6 +622,11 @@
       </details>
 
       <details class="section" open>
+        <summary class="section-title">Modifier</summary>
+        <div class="shape-grid" id="modifierGrid"></div>
+      </details>
+
+      <details class="section" open>
         <summary class="section-title">Color Preset</summary>
         <div class="preset-grid" id="presetGrid"></div>
       </details>
@@ -888,6 +893,7 @@ import { optimize as svgoOptimize } from 'https://cdn.jsdelivr.net/npm/svgo@3/di
 import {
   PRESETS,
   SHAPES,
+  MODIFIERS,
   getFontUrl,
   getGoogleFontUrl,
   calibrateFontSize as calibrateFontSizeCore,
@@ -900,6 +906,7 @@ let currentFont = null;
 
 let currentShape = 'circle';
 let activeTab = 'light';
+let currentModifier = 'none';
 let svgLight = '';
 let svgDark = '';
 let styles = { bold: false, italic: false };
@@ -1068,6 +1075,8 @@ function generateSVG(fill, stroke, letterColor, strokeWidth) {
     xOffset: xOff,
     yOffset: yOff,
     shapeScale,
+    modifier: currentModifier,
+    modifierColor: stroke,
   });
 
   lastViewBoxSize = viewBoxSize;
@@ -1293,13 +1302,34 @@ function buildShapes() {
 document.getElementById('shapeGrid').addEventListener('click', e => {
   const btn = e.target.closest('.shape-btn');
   if (!btn) return;
-  document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+  e.currentTarget.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   currentShape = btn.dataset.shape;
   const defaultScale = SHAPES[currentShape].defaultScale ?? 1.0;
   document.getElementById('shapeScale').value = defaultScale;
   document.getElementById('shapeScaleVal').textContent = defaultScale.toFixed(2);
   calibrateFontSize();
+  render();
+});
+
+// ── Modifier Selection ────────────────────────────────────────────────
+function buildModifiers() {
+  const grid = document.getElementById('modifierGrid');
+  Object.entries(MODIFIERS).forEach(([key, mod]) => {
+    const btn = document.createElement('button');
+    btn.className = 'shape-btn' + (key === 'none' ? ' active' : '');
+    btn.dataset.modifier = key;
+    btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 16 16">${mod.preview}</svg>\n${mod.label}`;
+    grid.appendChild(btn);
+  });
+}
+
+document.getElementById('modifierGrid').addEventListener('click', e => {
+  const btn = e.target.closest('.shape-btn');
+  if (!btn) return;
+  e.currentTarget.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentModifier = btn.dataset.modifier;
   render();
 });
 
@@ -1549,6 +1579,7 @@ bindSlider('xOffset', 'xOffsetVal');
 bindSlider('strokeWidth', 'strokeWidthVal');
 
 buildShapes();
+buildModifiers();
 buildPresets();
 updatePresetSwatches(themes[currentThemeIndex].key);
 
