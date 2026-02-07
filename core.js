@@ -1,0 +1,277 @@
+/**
+ * Letter Icon Composer — shared core module.
+ * Pure generation logic with no DOM dependency.
+ * Used by both the browser UI (index.html) and the Node.js CLI (cli.js).
+ */
+
+// ── Color Presets (extracted from JetBrains expUI icons) ─────────────
+export const PRESETS = [
+  // JetBrains expUI official colors
+  { name: 'Blue',   lightFill: '#E7EFFD', lightStroke: '#3574F0', darkFill: '#25324D', darkStroke: '#548AF7', official: true },
+  { name: 'Orange', lightFill: '#FFF4EB', lightStroke: '#E66D17', darkFill: '#45322B', darkStroke: '#C77D55', official: true },
+  { name: 'Purple', lightFill: '#FAF5FF', lightStroke: '#834DF0', darkFill: '#2F2936', darkStroke: '#A571E6', official: true },
+  { name: 'Red',    lightFill: '#FFF7F7', lightStroke: '#DB3B4B', darkFill: '#402929', darkStroke: '#DB5C5C', official: true },
+  { name: 'Green',  lightFill: '#F2FCF3', lightStroke: '#208A3C', darkFill: '#253627', darkStroke: '#57965C', official: true },
+  { name: 'Amber',  lightFill: '#FFFAEB', lightStroke: '#C27D04', darkFill: '#3D3223', darkStroke: '#D6AE58', official: true },
+  // Custom extras
+  { name: 'Gold',   lightFill: '#FFF4E6', lightStroke: '#E8A838', darkFill: '#3D3019', darkStroke: '#FFB74D', official: false },
+  { name: 'Grey',   lightFill: '#F0F0F0', lightStroke: '#757575', darkFill: '#303030', darkStroke: '#9E9E9E', official: false },
+  { name: 'Teal',   lightFill: '#E0F2F1', lightStroke: '#00796B', darkFill: '#1A3230', darkStroke: '#4DB6AC', official: false },
+  { name: 'Pink',   lightFill: '#FCE4EC', lightStroke: '#AD1457', darkFill: '#3B2430', darkStroke: '#F06292', official: false },
+];
+
+// ── Shape Generators ─────────────────────────────────────────────────
+// Each shape has a generator function and metadata for the UI.
+// Official shapes are derived from JetBrains expUI icons.
+export const SHAPES = {
+  // ── Official (JetBrains expUI) ──
+  circle: {
+    official: true,
+    label: 'Circle',
+    preview: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw) =>
+      `<circle cx="8" cy="8" r="${7 - sw/2}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
+  },
+
+  roundrect: {
+    official: true,
+    label: 'Rounded Rect',
+    preview: '<rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw) => {
+      const inset = 1.5 + sw/2;
+      const size = 16 - 2*inset;
+      return `<rect x="${inset}" y="${inset}" width="${size}" height="${size}" rx="1.5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    },
+  },
+
+  diamond: {
+    official: true,
+    label: 'Diamond',
+    preview: '<rect x="3.13" y="3.13" width="9.75" height="9.75" rx="0.5" transform="rotate(45 8 8)" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw) => {
+      const halfDiag = 7.4 - sw/2;
+      const side = Math.round(halfDiag * Math.SQRT2 * 100) / 100;
+      const offset = Math.round((8 - side/2) * 100) / 100;
+      return `<rect x="${offset}" y="${offset}" width="${side}" height="${side}" rx="0.5" transform="rotate(45 8 8)" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    },
+  },
+
+  'rounded-diamond': {
+    official: true,
+    label: 'Rounded Diamond',
+    preview: '<rect x="3.34" y="3.34" width="9.32" height="9.32" rx="1.5" transform="rotate(45 8 8)" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw) => {
+      const halfDiag = 7 - sw/2;
+      const side = Math.round(halfDiag * Math.SQRT2 * 100) / 100;
+      const offset = Math.round((8 - side/2) * 100) / 100;
+      return `<rect x="${offset}" y="${offset}" width="${side}" height="${side}" rx="1.5" transform="rotate(45 8 8)" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    },
+  },
+
+  shield: {
+    official: true,
+    label: 'Shield',
+    preview: '<path d="M2.5 3.83L8 1.54L13.5 3.83V9.18C13.5 10.75 12.71 11.92 11.63 12.89C10.83 13.6 9.85 14.23 8.9 14.82L8 15.4L7.1 14.82C6.15 14.23 5.17 13.6 4.37 12.89C3.29 11.92 2.5 10.75 2.5 9.18V3.83Z" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw) =>
+      `<path d="M2.5 3.83333L8 1.54167L13.5 3.83333L13.5 9.17871C13.5 10.7502 12.7145 11.9168 11.6339 12.8852C10.8323 13.6036 9.84849 14.226 8.90452 14.8218L8.9021 14.8233C8.59264 15.0186 8.28712 15.2115 8 15.4009C7.71296 15.2115 7.40754 15.0187 7.09817 14.8235L7.09548 14.8218C6.15151 14.226 5.16769 13.6036 4.36607 12.8852C3.28548 11.9168 2.5 10.7502 2.5 9.17871V3.83333Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
+  },
+
+  'dashed-circle': {
+    official: true,
+    label: 'Dashed Circle',
+    preview: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 2"/>',
+    generate: (fill, stroke, sw) =>
+      `<path d="M12.9498 3.05025C15.6835 5.78392 15.6835 10.2161 12.9498 12.9497C10.2162 15.6834 5.784 15.6834 3.05033 12.9497C0.316663 10.2161 0.316663 5.78392 3.05033 3.05025C5.784 0.316582 10.2162 0.316583 12.9498 3.05025Z" fill="${fill}"/>` +
+      `\n  <path fill-rule="evenodd" clip-rule="evenodd" d="M14.9144 6.90481L13.9266 7.06045C13.736 5.85124 13.1756 4.69027 12.2427 3.75736C11.3098 2.82445 10.1488 2.26404 8.93963 2.07352L9.09527 1.0857C10.5063 1.30802 11.8624 1.96287 12.9498 3.05025C14.0372 4.13763 14.6921 5.49375 14.9144 6.90481ZM6.90489 1.0857L7.06053 2.07352C5.85132 2.26404 4.69035 2.82445 3.75744 3.75736C2.82453 4.69027 2.26412 5.85124 2.0736 7.06045L1.08579 6.90481C1.30811 5.49375 1.96295 4.13763 3.05033 3.05025C4.13771 1.96287 5.49383 1.30802 6.90489 1.0857ZM1.08579 9.09519C1.30811 10.5063 1.96295 11.8624 3.05033 12.9497C4.13771 14.0371 5.49383 14.692 6.90489 14.9143L7.06053 13.9265C5.85132 13.736 4.69035 13.1755 3.75744 12.2426C2.82453 11.3097 2.26412 10.1488 2.0736 8.93955L1.08579 9.09519ZM9.09527 14.9143L8.93963 13.9265C10.1488 13.736 11.3098 13.1755 12.2427 12.2426C13.1756 11.3097 13.736 10.1488 13.9266 8.93955L14.9144 9.09519C14.6921 10.5063 14.0372 11.8624 12.9498 12.9497C11.8624 14.0371 10.5063 14.692 9.09527 14.9143Z" fill="${stroke}"/>`,
+  },
+
+  'dashed-rect': {
+    official: true,
+    label: 'Dashed Rect',
+    preview: '<rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 2"/>',
+    generate: (fill, stroke, sw) =>
+      `<path d="M2 4C2 2.89543 2.89543 2 4 2H12C13.1046 2 14 2.89543 14 4V12C14 13.1046 13.1046 14 12 14H4C2.89543 14 2 13.1046 2 12V4Z" fill="${fill}"/>` +
+      `\n  <path d="M9 3H12C12.5523 3 13 3.44772 13 4V7H14V4C14 2.89543 13.1046 2 12 2H9V3Z" fill="${stroke}"/>` +
+      `\n  <path d="M7 3V2H4C2.89543 2 2 2.89543 2 4V7H3V4C3 3.44772 3.44772 3 4 3H7Z" fill="${stroke}"/>` +
+      `\n  <path d="M3 9H2V12C2 13.1046 2.89543 14 4 14H7V13H4C3.44772 13 3 12.5523 3 12V9Z" fill="${stroke}"/>` +
+      `\n  <path d="M9 13V14H12C13.1046 14 14 13.1046 14 12V9H13V12C13 12.5523 12.5523 13 12 13H9Z" fill="${stroke}"/>`,
+  },
+
+  // ── Custom ──
+  composite: {
+    official: false,
+    label: 'Composite',
+    preview: '<rect x="2" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1"/><path d="M13 10V3.5C13 2.67 12.33 2 11.5 2H5" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>',
+    generate: (fill, stroke, sw) =>
+      `<path d="M13 10V3.5C13 2.67 12.33 2 11.5 2H5" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round"/>` +
+      `\n  <rect x="2" y="5" width="9" height="9" rx="1.5" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
+  },
+
+  hexagon: {
+    official: false,
+    label: 'Hexagon',
+    preview: '<path d="M8 2L13 4.5v6L8 13L3 10.5v-6Z" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw) =>
+      `<path d="M8 2L13 4.5v6L8 13L3 10.5v-6Z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`,
+  },
+
+  document: {
+    official: false,
+    label: 'Document',
+    preview: '<path d="M3.5 2.5h6.5l3 3v7.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1"/>',
+    generate: (fill, stroke, sw) =>
+      `<path d="M3.5 2.5h6.5l3 3v7.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>` +
+      `\n  <path d="M10 2.5v3h3" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round"/>`,
+  },
+};
+
+// ── Font URL Resolution ──────────────────────────────────────────────
+export function getFontUrl(key, bold, italic) {
+  if (key === 'open-sans') {
+    const weight = bold ? 'Bold' : 'SemiBold';
+    const style = italic ? 'Italic' : '';
+    return `https://cdn.jsdelivr.net/gh/googlefonts/opensans@main/fonts/ttf/OpenSans-${weight}${style}.ttf`;
+  }
+  if (key === 'inter') {
+    if (italic) return null;
+    const weight = bold ? 'Bold' : 'SemiBold';
+    return `https://cdn.jsdelivr.net/gh/rsms/inter@v3.19/docs/font-files/Inter-${weight}.otf`;
+  }
+  return null;
+}
+
+export function toFontsourceSlug(name) {
+  return name.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+export function getGoogleFontUrl(name, weight, bold, italic) {
+  const slug = toFontsourceSlug(name);
+  const effectiveWeight = bold ? '700' : weight;
+  const fontStyle = italic ? 'italic' : 'normal';
+  const subsets = ['latin', 'latin-ext', 'all'];
+  return subsets.map(subset =>
+    `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/${subset}-${effectiveWeight}-${fontStyle}.woff`
+  );
+}
+
+// ── Font Size Calibration ────────────────────────────────────────────
+/**
+ * Computes the fontSize that produces a ~7-unit tall glyph in a 16x16
+ * viewBox, matching JetBrains icon conventions.  When a letter is
+ * provided the *actual* glyph height is used for calibration, so
+ * lowercase characters are scaled up to the same visual height as
+ * uppercase ones.
+ * @param {object} font - An opentype.js Font object
+ * @param {string} [letter='E'] - The letter(s) to calibrate against
+ * @param {number} [targetHeight=7.0] - Desired glyph height in SVG units
+ * @returns {number} The calibrated font size
+ */
+export function calibrateFontSize(font, letter = 'E', targetHeight = 7.0) {
+  const testStr = (letter && letter.length > 0) ? letter : 'E';
+  const testPath = font.getPath(testStr, 0, 0, 100);
+  const bb = testPath.getBoundingBox();
+  const heightAt100 = bb.y2 - bb.y1;
+  if (heightAt100 <= 0) return 7.0;
+  return Math.round((targetHeight / heightAt100) * 100 * 10) / 10;
+}
+
+// ── Letter Path Generation ───────────────────────────────────────────
+/**
+ * Generates an SVG <path> element for a letter centered in a 16x16 viewBox.
+ * @param {object} font - An opentype.js Font object
+ * @param {string} letter - The letter(s) to render
+ * @param {string} fill - Fill color for the letter path
+ * @param {number} fontSize - Font size in SVG units
+ * @param {number} [xOff=0] - Horizontal offset from center
+ * @param {number} [yOff=0] - Vertical offset from center
+ * @returns {{ path: string, error: string|null }}
+ */
+export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff = 0) {
+  if (!font || !letter) return { path: '', error: null };
+
+  try {
+    const path = font.getPath(letter, 0, 0, fontSize);
+    const bb = path.getBoundingBox();
+    const w = bb.x2 - bb.x1;
+    const h = bb.y2 - bb.y1;
+
+    if (w === 0 && h === 0) {
+      return { path: '', error: `The current font has no glyph for "${letter}".` };
+    }
+
+    const cx = 8 + xOff;
+    const cy = 8 + yOff;
+    const tx = cx - w / 2 - bb.x1;
+    const ty = cy - h / 2 - bb.y1;
+
+    const centered = font.getPath(letter, tx, ty, fontSize);
+    const d = centered.toPathData(2);
+    return { path: `<path d="${d}" fill="${fill}"/>`, error: null };
+  } catch (e) {
+    return { path: '', error: `Error generating letter path: ${e.message}` };
+  }
+}
+
+// ── Full SVG Assembly ────────────────────────────────────────────────
+/**
+ * Generates a complete 16x16 SVG icon with shape background and letter overlay.
+ * @param {object} params
+ * @param {object} params.font - An opentype.js Font object
+ * @param {string} params.letter - The letter(s) to render
+ * @param {string} params.shape - Shape name (see SHAPES keys)
+ * @param {string} params.fill - Shape fill color
+ * @param {string} params.stroke - Shape stroke color
+ * @param {string} params.letterColor - Letter fill color
+ * @param {number} [params.strokeWidth=1] - Shape stroke width
+ * @param {number} [params.fontSize] - Font size (auto-calibrated if omitted)
+ * @param {number} [params.xOffset=0] - Horizontal letter offset
+ * @param {number} [params.yOffset=0] - Vertical letter offset
+ * @param {number} [params.shapeScale] - Shape scale factor (default per-shape or 1.0)
+ * @returns {{ svg: string, error: string|null }}
+ */
+export function generateSVG({
+  font,
+  letter,
+  shape,
+  fill,
+  stroke,
+  letterColor,
+  strokeWidth = 1,
+  fontSize,
+  xOffset = 0,
+  yOffset = 0,
+  shapeScale,
+}) {
+  const shapeDef = SHAPES[shape];
+  if (!shapeDef) {
+    return { svg: '', error: `Unknown shape: "${shape}". Valid shapes: ${Object.keys(SHAPES).join(', ')}` };
+  }
+
+  const size = fontSize ?? (font ? calibrateFontSize(font, letter) : 7.0);
+  let shapeMarkup = shapeDef.generate(fill, stroke, strokeWidth);
+
+  const scale = shapeScale ?? shapeDef.defaultScale ?? 1.0;
+  if (scale !== 1.0) {
+    shapeMarkup = `<g transform="translate(8 8) scale(${scale}) translate(-8 -8)">\n    ${shapeMarkup}\n  </g>`;
+  }
+
+  const { path: letterMarkup, error } = generateLetterPath(font, letter, letterColor, size, xOffset, yOffset);
+
+  const svg = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  ${shapeMarkup}
+  ${letterMarkup}
+</svg>`;
+
+  return { svg, error };
+}
+
+// ── Preset Lookup ────────────────────────────────────────────────────
+/**
+ * Finds a preset by name (case-insensitive).
+ * @param {string} name - Preset name (e.g. "blue", "Purple")
+ * @returns {object|undefined}
+ */
+export function findPreset(name) {
+  const lower = name.toLowerCase();
+  return PRESETS.find(p => p.name.toLowerCase() === lower);
+}

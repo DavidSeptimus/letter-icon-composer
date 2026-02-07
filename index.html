@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Letter Icon Composer</title>
+<script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --surface: #282840;
+    --surface2: #32324a;
+    --border: #44446a;
+    --text: #e0e0f0;
+    --text-dim: #9090b0;
+    --accent: #7c8aff;
+    --accent-hover: #9aa4ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    max-width: 1100px;
+    margin: 0 auto 24px;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .subtitle { color: var(--text-dim); font-size: 13px; }
+  .socials {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .socials a {
+    color: var(--text-dim);
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+  }
+  .socials a:hover { color: var(--text); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .section { margin-bottom: 20px; }
+  .section:last-child { margin-bottom: 0; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+  }
+  .section-title::-webkit-details-marker { display: none; }
+  .section-title::before {
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 4px solid var(--text-dim);
+    border-top: 3px solid transparent;
+    border-bottom: 3px solid transparent;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  details.section[open] > .section-title::before {
+    transform: rotate(90deg);
+  }
+  details.section:not([open]) > .section-title {
+    margin-bottom: 0;
+  }
+  details.section > *:not(summary) {
+    opacity: 1;
+    transition: opacity 0.15s ease;
+  }
+  details.section:not([open]) > *:not(summary) {
+    opacity: 0;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  input[type="text"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 13px;
+    outline: none;
+  }
+  input:focus, select:focus {
+    border-color: var(--accent);
+  }
+
+  .letter-input {
+    font-size: 24px;
+    text-align: center;
+    font-weight: 600;
+    padding: 8px;
+  }
+
+  .color-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .color-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .color-field input[type="color"] {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+  }
+  .color-field input[type="text"] {
+    width: 80px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .preset-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 11px;
+    transition: border-color 0.15s;
+  }
+  .preset-divider {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    padding: 4px 0 0;
+    border-top: 1px solid var(--border);
+    margin-top: 2px;
+  }
+  .preset-btn:hover { border-color: var(--accent); }
+  .preset-btn.active { border-color: var(--accent); background: rgba(124,138,255,0.1); }
+  .preset-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    flex-shrink: 0;
+  }
+
+  .shape-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .shape-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    cursor: pointer;
+    text-align: center;
+    color: var(--text);
+    font-size: 11px;
+    transition: border-color 0.15s;
+  }
+  .shape-btn:hover { border-color: var(--accent); }
+  .shape-btn.active { border-color: var(--accent); background: rgba(124,138,255,0.1); }
+  .shape-btn svg { display: block; margin: 0 auto 4px; }
+
+  /* Preview area */
+  .preview-area {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .preview-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+  .preview-card-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .preview-canvas-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 12px;
+  }
+  .preview-actual {
+    border: 1px dashed var(--border);
+    padding: 4px;
+    border-radius: 4px;
+  }
+  .preview-actual span {
+    display: block;
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .preview-zoomed svg { display: block; }
+  .preview-light .preview-zoomed { background: #f5f5f5; border-radius: 8px; padding: 16px; }
+  .preview-dark .preview-zoomed { background: #2b2b2b; border-radius: 8px; padding: 16px; }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--accent); }
+
+  /* SVG Code panel */
+  .code-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .code-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+  }
+  .code-tab {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-dim);
+  }
+  .code-tab:first-child { border-radius: 6px 0 0 6px; }
+  .code-tab:last-child { border-radius: 0 6px 6px 0; }
+  .code-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .code-block {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* Error card */
+  .error-card {
+    background: rgba(198, 40, 40, 0.08);
+    border: 1px solid rgba(239, 83, 80, 0.4);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: #EF5350;
+  }
+  .error-card-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .error-card-message {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #e09090;
+  }
+  .error-card-message code {
+    background: rgba(239, 83, 80, 0.12);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .error-card-message a {
+    color: #fff;
+    text-decoration: underline;
+    text-decoration-color: rgba(255,255,255,0.4);
+  }
+  .error-card-message a:hover {
+    text-decoration-color: #fff;
+  }
+
+  .font-info {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+  .font-info a { color: var(--accent); text-decoration: none; }
+  .font-info a:hover { text-decoration: underline; }
+
+  /* Style toggles */
+  .style-toggles {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .style-toggle {
+    width: 32px;
+    height: 28px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .style-toggle:hover { border-color: var(--accent); color: var(--text); }
+  .style-toggle.active { border-color: var(--accent); background: rgba(124,138,255,0.15); color: var(--text); }
+  .style-toggle-b { font-weight: 700; }
+  .style-toggle-i { font-style: italic; }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .slider-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+  .slider-val {
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 30px;
+    text-align: right;
+    font-family: monospace;
+  }
+
+  .footer {
+    max-width: 1100px;
+    border-top: 1px solid var(--surface2);
+    margin: 60px auto 0;
+    padding-top: 32px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Letter Icon Composer</h1>
+    <p class="subtitle">Generate composite letter-on-shape SVG icons for IntelliJ structure &amp; completion views</p>
+  </div>
+  <div class="socials">
+    <a href="https://github.com/DavidSeptimus/letter-icon-composer" target="_blank" title="GitHub">
+      <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    </a>
+    <a href="https://linkedin.com/in/DavidSeptimus" target="_blank" title="LinkedIn">
+      <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016l.016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z"/></svg>
+    </a>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Controls Panel -->
+  <div>
+    <div class="panel">
+      <details class="section" open>
+        <summary class="section-title">Letter</summary>
+        <input type="text" id="letter" class="letter-input" value="N" maxlength="2" placeholder="A">
+        <div class="style-toggles">
+          <button class="style-toggle style-toggle-b" data-style="bold" title="Bold">B</button>
+          <button class="style-toggle style-toggle-i" data-style="italic" title="Italic">I</button>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary class="section-title">Shape</summary>
+        <div class="shape-grid" id="shapeGrid"></div>
+      </details>
+
+      <details class="section" open>
+        <summary class="section-title">Color Preset</summary>
+        <div class="preset-grid" id="presetGrid"></div>
+      </details>
+
+      <details class="section">
+        <summary class="section-title">Light Theme Colors</summary>
+        <div class="color-row">
+          <div>
+            <label>Fill</label>
+            <div class="color-field">
+              <input type="color" id="lightFill" value="#E7EFFD">
+              <input type="text" id="lightFillHex" value="#E7EFFD">
+            </div>
+          </div>
+          <div>
+            <label>Stroke / Letter</label>
+            <div class="color-field">
+              <input type="color" id="lightStroke" value="#3574F0">
+              <input type="text" id="lightStrokeHex" value="#3574F0">
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary class="section-title">Dark Theme Colors</summary>
+        <div class="color-row">
+          <div>
+            <label>Fill</label>
+            <div class="color-field">
+              <input type="color" id="darkFill" value="#25324D">
+              <input type="text" id="darkFillHex" value="#25324D">
+            </div>
+          </div>
+          <div>
+            <label>Stroke / Letter</label>
+            <div class="color-field">
+              <input type="color" id="darkStroke" value="#548AF7">
+              <input type="text" id="darkStrokeHex" value="#548AF7">
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary class="section-title" style="justify-content:space-between">
+          <span>Fine Tuning</span>
+          <button class="btn btn-secondary" id="resetSliders" style="padding:2px 8px;font-size:10px;text-transform:none;letter-spacing:0">Reset</button>
+        </summary>
+        <label>Shape Scale</label>
+        <div class="slider-row">
+          <input type="range" id="shapeScale" min="0.6" max="1.4" step="0.05" value="1">
+          <span class="slider-val" id="shapeScaleVal">1.00</span>
+        </div>
+        <label style="margin-top:8px">Font Size</label>
+        <div class="slider-row">
+          <input type="range" id="fontSize" min="4" max="14" step="0.1" value="7">
+          <span class="slider-val" id="fontSizeVal">7.0</span>
+        </div>
+        <label style="margin-top:8px">Vertical Offset</label>
+        <div class="slider-row">
+          <input type="range" id="yOffset" min="-2" max="2" step="0.1" value="0">
+          <span class="slider-val" id="yOffsetVal">0.0</span>
+        </div>
+        <label style="margin-top:8px">Horizontal Offset</label>
+        <div class="slider-row">
+          <input type="range" id="xOffset" min="-2" max="2" step="0.1" value="0">
+          <span class="slider-val" id="xOffsetVal">0.0</span>
+        </div>
+        <label style="margin-top:8px">Stroke Width</label>
+        <div class="slider-row">
+          <input type="range" id="strokeWidth" min="0.5" max="2" step="0.1" value="1">
+          <span class="slider-val" id="strokeWidthVal">1.0</span>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary class="section-title">Font</summary>
+        <select id="fontSelect">
+          <option value="open-sans" selected>Open Sans (JetBrains recommended)</option>
+          <option value="arial">Arial</option>
+          <option value="inter">Inter</option>
+          <option value="google-fonts">Google Fonts...</option>
+          <option value="custom">Upload custom .ttf/.otf</option>
+        </select>
+        <div id="googleFontsRow" style="display:none; margin-top:8px;">
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="googleFontName" placeholder="e.g. Roboto, Fira Sans" style="flex:1">
+            <select id="googleFontWeight" style="width:90px">
+              <option value="400">Regular</option>
+              <option value="500">Medium</option>
+              <option value="600" selected>SemiBold</option>
+              <option value="700">Bold</option>
+            </select>
+            <button class="btn" id="googleFontLoad" style="padding:6px 10px; white-space:nowrap">Load</button>
+          </div>
+          <div id="googleFontStatus" class="font-info" style="margin-top:4px"></div>
+        </div>
+        <input type="file" id="fontFile" accept=".ttf,.otf,.woff" style="display:none">
+        <div class="font-info">
+          JetBrains recommends <b>Arial</b> or <b>Open Sans</b> for icon letters.
+          <a href="https://plugins.jetbrains.com/docs/intellij/icons-style.html" target="_blank">Guidelines</a>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary class="section-title">File Name</summary>
+        <input type="text" id="fileName" value="icon" placeholder="e.g. myNode">
+        <div class="font-info" style="margin-top:4px">
+          Downloads as <code>{name}.svg</code> and <code>{name}_dark.svg</code>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- Preview Panel -->
+  <div class="preview-area">
+    <div class="preview-row">
+      <div class="preview-card preview-light">
+        <div class="preview-card-title">Light Theme</div>
+        <div class="preview-canvas-wrap">
+          <div>
+            <div class="preview-zoomed" id="previewLightZoomed"></div>
+          </div>
+          <div class="preview-actual">
+            <div id="previewLightActual"></div>
+            <span>16×16</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="copyLight">Copy SVG</button>
+          <button class="btn" id="downloadLight">Download</button>
+        </div>
+      </div>
+      <div class="preview-card preview-dark">
+        <div class="preview-card-title">Dark Theme</div>
+        <div class="preview-canvas-wrap">
+          <div>
+            <div class="preview-zoomed" id="previewDarkZoomed"></div>
+          </div>
+          <div class="preview-actual">
+            <div id="previewDarkActual"></div>
+            <span>16×16</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="copyDark">Copy SVG</button>
+          <button class="btn" id="downloadDark">Download</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="padding: 8px 0;">
+      <button class="btn" id="downloadBoth">Download Both (Light + Dark)</button>
+    </div>
+
+    <div class="code-panel">
+      <div class="code-tabs">
+        <button class="code-tab active" data-tab="light" id="tabLight">Light SVG</button>
+        <button class="code-tab" data-tab="dark" id="tabDark">Dark SVG</button>
+      </div>
+      <div class="code-block" id="codeBlock"></div>
+    </div>
+
+    <div class="error-card" id="errorCard" style="display:none">
+      <div class="error-card-title">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM7.25 5h1.5v4h-1.5V5zm.75 6.5a.75.75 0 110-1.5.75.75 0 010 1.5z" fill="currentColor"/></svg>
+        Error
+      </div>
+      <div class="error-card-message" id="errorMessage"></div>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">This site is not affiliated with JetBrains s.r.o.</footer>
+
+<script type="module">
+import {
+  PRESETS,
+  SHAPES,
+  getFontUrl,
+  getGoogleFontUrl,
+  calibrateFontSize as calibrateFontSizeCore,
+  generateSVG as generateSVGCore,
+} from './core.js';
+
+// ── State ─────────────────────────────────────────────────────────────
+let currentFont = null;
+
+let currentShape = 'circle';
+let activeTab = 'light';
+let svgLight = '';
+let svgDark = '';
+let styles = { bold: false, italic: false };
+
+// ── Error Reporting ───────────────────────────────────────────────────
+function showError(message) {
+  const card = document.getElementById('errorCard');
+  document.getElementById('errorMessage').innerHTML = message;
+  card.style.display = 'block';
+}
+
+function clearError() {
+  document.getElementById('errorCard').style.display = 'none';
+}
+
+// ── Font Loading ──────────────────────────────────────────────────────
+let currentFontKey = 'open-sans';
+
+function calibrateFontSize() {
+  if (!currentFont) return;
+  const letter = document.getElementById('letter').value;
+  const calibrated = calibrateFontSizeCore(currentFont, letter);
+  document.getElementById('fontSize').value = calibrated;
+  document.getElementById('fontSizeVal').textContent = calibrated.toFixed(1);
+}
+
+async function loadFont(key) {
+  currentFontKey = key;
+  if (key === 'arial') {
+    await loadSystemFont('Arial');
+    return;
+  }
+  if (key === 'google-fonts' || key === 'custom') return;
+
+  const url = getFontUrl(key, styles.bold, styles.italic);
+  if (!url) {
+    const label = document.querySelector(`#fontSelect option[value="${key}"]`)?.textContent || key;
+    showError(`<b>${label}</b> does not have an italic variant.`);
+    return;
+  }
+  try {
+    currentFont = await opentype.load(url);
+    calibrateFontSize();
+    clearError();
+    render();
+  } catch (e) {
+    console.error('Failed to load font:', e);
+    const sig = e.message || '';
+    if (sig.includes('Unsupported OpenType signature')) {
+      const match = sig.match(/signature\s+(\w+)/);
+      const tag = match ? match[1] : 'unknown';
+      showError(`Font format not supported by opentype.js. Signature: <code>${tag}</code><br>This usually means the font uses COLRv1 color tables or WOFF2 compression. Try a different version or format (.otf, .ttf, .woff).`);
+    } else {
+      showError(`Failed to load font: <code>${sig}</code>`);
+    }
+  }
+}
+
+async function loadSystemFont(family) {
+  if ('queryLocalFonts' in window) {
+    try {
+      const fonts = await window.queryLocalFonts();
+      const wantBold = styles.bold;
+      const wantItalic = styles.italic;
+      const match = fonts.find(f => {
+        if (f.family !== family) return false;
+        const s = (f.style || f.fullName || '').toLowerCase();
+        const isBold = /bold/i.test(s);
+        const isItalic = /italic/i.test(s);
+        return isBold === wantBold && isItalic === wantItalic;
+      }) || fonts.find(f => {
+        // Fallback: prefer regular (non-italic, non-bold) variant
+        if (f.family !== family) return false;
+        const s = (f.style || f.fullName || '').toLowerCase();
+        return !(/bold/i.test(s)) && !(/italic/i.test(s));
+      }) || fonts.find(f => f.family === family);
+      if (match) {
+        const blob = await match.blob();
+        const buf = await blob.arrayBuffer();
+        currentFont = opentype.parse(buf);
+        calibrateFontSize();
+        clearError();
+        render();
+        return;
+      }
+      showError(`"${family}" was not found on your system. Try <b>Arimo</b> via the Google Fonts option — it's a metric-compatible open-source alternative.`);
+    } catch (e) {
+      showError(`Local font access was denied. Try <b>Arimo</b> via the Google Fonts option — it's a metric-compatible open-source alternative to ${family}.`);
+    }
+  } else {
+    showError(`Your browser doesn't support local font access. Try <b>Arimo</b> via the Google Fonts option — it's a metric-compatible open-source alternative to ${family}.`);
+  }
+}
+
+// ── SVG Generation (delegates to core.js) ─────────────────────────────
+function generateSVG(fill, stroke, letterColor, strokeWidth) {
+  const letter = document.getElementById('letter').value;
+  const fontSize = parseFloat(document.getElementById('fontSize').value);
+  const xOff = parseFloat(document.getElementById('xOffset').value);
+  const yOff = parseFloat(document.getElementById('yOffset').value);
+  const shapeScale = parseFloat(document.getElementById('shapeScale').value);
+
+  const { svg, error } = generateSVGCore({
+    font: currentFont,
+    letter,
+    shape: currentShape,
+    fill,
+    stroke,
+    letterColor,
+    strokeWidth,
+    fontSize,
+    xOffset: xOff,
+    yOffset: yOff,
+    shapeScale,
+  });
+
+  if (error) showError(error);
+  return svg;
+}
+
+// ── Render & Preview ──────────────────────────────────────────────────
+function render() {
+  clearError();
+  const lightFill = document.getElementById('lightFill').value;
+  const lightStroke = document.getElementById('lightStroke').value;
+  const darkFill = document.getElementById('darkFill').value;
+  const darkStroke = document.getElementById('darkStroke').value;
+  const sw = parseFloat(document.getElementById('strokeWidth').value);
+
+  svgLight = generateSVG(lightFill, lightStroke, lightStroke, sw);
+  svgDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
+
+  // Zoomed previews (128x128)
+  const lightZoomed = svgLight.replace('width="16" height="16"', 'width="128" height="128"');
+  const darkZoomed = svgDark.replace('width="16" height="16"', 'width="128" height="128"');
+
+  document.getElementById('previewLightZoomed').innerHTML = lightZoomed;
+  document.getElementById('previewDarkZoomed').innerHTML = darkZoomed;
+
+  // Actual size previews
+  document.getElementById('previewLightActual').innerHTML = svgLight;
+  document.getElementById('previewDarkActual').innerHTML = svgDark;
+
+  // Code block
+  updateCodeBlock();
+}
+
+function updateCodeBlock() {
+  const code = activeTab === 'light' ? svgLight : svgDark;
+  document.getElementById('codeBlock').textContent = code;
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.code-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  updateCodeBlock();
+}
+
+// ── Download ──────────────────────────────────────────────────────────
+function downloadFile(content, filename) {
+  const blob = new Blob([content], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadSVG(variant) {
+  const name = document.getElementById('fileName').value || 'icon';
+  const suffix = variant === 'dark' ? '_dark' : '';
+  downloadFile(variant === 'light' ? svgLight : svgDark, `${name}${suffix}.svg`);
+}
+
+function downloadBoth() {
+  downloadSVG('light');
+  setTimeout(() => downloadSVG('dark'), 200);
+}
+
+function copySVG(variant, btn) {
+  const svg = variant === 'light' ? svgLight : svgDark;
+  navigator.clipboard.writeText(svg).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy SVG', 1200);
+  });
+}
+
+// ── Color Sync ────────────────────────────────────────────────────────
+function syncColor(pickerId, hexId) {
+  const picker = document.getElementById(pickerId);
+  const hex = document.getElementById(hexId);
+
+  picker.addEventListener('input', () => { hex.value = picker.value.toUpperCase(); render(); });
+  hex.addEventListener('input', () => {
+    const v = hex.value;
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { picker.value = v; render(); }
+  });
+  hex.addEventListener('change', () => {
+    let v = hex.value;
+    if (!v.startsWith('#')) v = '#' + v;
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) { hex.value = v.toUpperCase(); picker.value = v; render(); }
+  });
+}
+
+// ── Presets ────────────────────────────────────────────────────────────
+function buildPresets() {
+  const grid = document.getElementById('presetGrid');
+  let addedDivider = false;
+  PRESETS.forEach((p, i) => {
+    if (!p.official && !addedDivider) {
+      addedDivider = true;
+      const divider = document.createElement('div');
+      divider.className = 'preset-divider';
+      divider.textContent = 'Custom';
+      grid.appendChild(divider);
+    }
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (i === 0 ? ' active' : '');
+    btn.innerHTML = `<span class="preset-swatch" style="background:${p.lightFill};color:${p.lightStroke}"></span>${p.name}`;
+    btn.title = p.official ? `JetBrains expUI — ${p.name}` : `Custom — ${p.name}`;
+    btn.addEventListener('click', () => {
+      grid.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('lightFill').value = p.lightFill;
+      document.getElementById('lightFillHex').value = p.lightFill;
+      document.getElementById('lightStroke').value = p.lightStroke;
+      document.getElementById('lightStrokeHex').value = p.lightStroke;
+      document.getElementById('darkFill').value = p.darkFill;
+      document.getElementById('darkFillHex').value = p.darkFill;
+      document.getElementById('darkStroke').value = p.darkStroke;
+      document.getElementById('darkStrokeHex').value = p.darkStroke;
+      render();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+// ── Shape Selection ───────────────────────────────────────────────────
+function buildShapes() {
+  const grid = document.getElementById('shapeGrid');
+  const entries = Object.entries(SHAPES);
+  let addedDivider = false;
+  entries.forEach(([key, shape], i) => {
+    if (!shape.official && !addedDivider) {
+      addedDivider = true;
+      const divider = document.createElement('div');
+      divider.className = 'preset-divider';
+      divider.textContent = 'Custom';
+      grid.appendChild(divider);
+    }
+    const btn = document.createElement('button');
+    btn.className = 'shape-btn' + (i === 0 ? ' active' : '');
+    btn.dataset.shape = key;
+    btn.title = shape.official ? `JetBrains expUI — ${shape.label}` : `Custom — ${shape.label}`;
+    btn.innerHTML = `<svg width="24" height="24" viewBox="0 0 16 16">${shape.preview}</svg>\n${shape.label}`;
+    grid.appendChild(btn);
+  });
+}
+
+document.getElementById('shapeGrid').addEventListener('click', e => {
+  const btn = e.target.closest('.shape-btn');
+  if (!btn) return;
+  document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentShape = btn.dataset.shape;
+  const defaultScale = SHAPES[currentShape].defaultScale ?? 1.0;
+  document.getElementById('shapeScale').value = defaultScale;
+  document.getElementById('shapeScaleVal').textContent = defaultScale.toFixed(2);
+  render();
+});
+
+// ── Slider Labels ─────────────────────────────────────────────────────
+function bindSlider(id, valId, decimals = 1) {
+  const slider = document.getElementById(id);
+  const val = document.getElementById(valId);
+  slider.addEventListener('input', () => { val.textContent = parseFloat(slider.value).toFixed(decimals); render(); });
+}
+
+// ── Google Fonts ──────────────────────────────────────────────────────
+async function loadGoogleFont() {
+  const name = document.getElementById('googleFontName').value;
+  const weight = document.getElementById('googleFontWeight').value;
+  const status = document.getElementById('googleFontStatus');
+  const btn = document.getElementById('googleFontLoad');
+
+  if (!name.trim()) { status.textContent = 'Enter a font name.'; return; }
+
+  const effectiveWeight = styles.bold ? '700' : weight;
+  const fontStyle = styles.italic ? 'italic' : 'normal';
+  btn.textContent = '...';
+  status.textContent = `Loading ${name} (${effectiveWeight} ${fontStyle})...`;
+
+  const urls = getGoogleFontUrl(name, weight, styles.bold, styles.italic);
+  let loaded = false;
+  let lastError = null;
+
+  for (const url of urls) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) continue;
+      const buf = await resp.arrayBuffer();
+      currentFont = opentype.parse(buf);
+      calibrateFontSize();
+      status.innerHTML = `Loaded <b>${name}</b> (${effectiveWeight} ${fontStyle}) from fontsource`;
+      loaded = true;
+      clearError();
+      render();
+      break;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (!loaded) {
+    const hint = lastError
+      ? `Font "${name}" was found but could not be parsed: <code>${lastError.message}</code>`
+      : `Could not find "${name}". Check spelling — use the name as shown on <a href="https://fonts.google.com" target="_blank">fonts.google.com</a>.`;
+    status.innerHTML = '';
+    showError(hint);
+  }
+  btn.textContent = 'Load';
+}
+
+document.getElementById('googleFontLoad').addEventListener('click', loadGoogleFont);
+document.getElementById('googleFontName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadGoogleFont();
+});
+
+// ── Font Select ───────────────────────────────────────────────────────
+const googleFontsRow = document.getElementById('googleFontsRow');
+
+document.getElementById('fontSelect').addEventListener('change', e => {
+  googleFontsRow.style.display = e.target.value === 'google-fonts' ? 'block' : 'none';
+  if (e.target.value === 'custom') {
+    document.getElementById('fontFile').click();
+  } else if (e.target.value === 'google-fonts') {
+    document.getElementById('googleFontName').focus();
+  } else {
+    loadFont(e.target.value);
+  }
+});
+
+document.getElementById('fontFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      currentFont = opentype.parse(evt.target.result);
+      calibrateFontSize();
+      render();
+    } catch (err) {
+      alert('Failed to parse font: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ── Style Toggles ────────────────────────────────────────────────────
+document.querySelectorAll('.style-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.style;
+    styles[key] = !styles[key];
+    btn.classList.toggle('active', styles[key]);
+    if (currentFontKey === 'google-fonts') {
+      loadGoogleFont();
+    } else {
+      loadFont(currentFontKey);
+    }
+  });
+});
+
+// ── Letter Input ──────────────────────────────────────────────────────
+document.getElementById('letter').addEventListener('input', () => {
+  calibrateFontSize();
+  render();
+});
+
+// ── Button Event Bindings ─────────────────────────────────────────────
+document.getElementById('copyLight').addEventListener('click', e => copySVG('light', e.target));
+document.getElementById('copyDark').addEventListener('click', e => copySVG('dark', e.target));
+document.getElementById('downloadLight').addEventListener('click', () => downloadSVG('light'));
+document.getElementById('downloadDark').addEventListener('click', () => downloadSVG('dark'));
+document.getElementById('downloadBoth').addEventListener('click', downloadBoth);
+document.getElementById('tabLight').addEventListener('click', () => switchTab('light'));
+document.getElementById('tabDark').addEventListener('click', () => switchTab('dark'));
+
+document.getElementById('resetSliders').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const defaultScale = SHAPES[currentShape].defaultScale ?? 1.0;
+  document.getElementById('shapeScale').value = defaultScale;
+  document.getElementById('shapeScaleVal').textContent = defaultScale.toFixed(2);
+  calibrateFontSize();
+  document.getElementById('xOffset').value = 0;
+  document.getElementById('xOffsetVal').textContent = '0.0';
+  document.getElementById('yOffset').value = 0;
+  document.getElementById('yOffsetVal').textContent = '0.0';
+  document.getElementById('strokeWidth').value = 1;
+  document.getElementById('strokeWidthVal').textContent = '1.0';
+  render();
+});
+
+// ── Collapsible Section Animations ────────────────────────────────────
+document.querySelectorAll('details.section').forEach(details => {
+  const summary = details.querySelector('summary');
+
+  summary.addEventListener('click', (e) => {
+    // Don't intercept clicks on interactive children (e.g. Reset button)
+    if (e.target !== summary && e.target.closest('button, a, input')) return;
+    e.preventDefault();
+
+    const isOpen = details.open;
+    const summaryH = summary.offsetHeight;
+
+    if (isOpen) {
+      // Closing
+      details.style.height = details.offsetHeight + 'px';
+      details.style.overflow = 'hidden';
+      requestAnimationFrame(() => {
+        details.style.transition = 'height 0.2s ease';
+        details.style.height = summaryH + 'px';
+      });
+      details.addEventListener('transitionend', function done() {
+        details.removeEventListener('transitionend', done);
+        details.open = false;
+        details.style.height = '';
+        details.style.overflow = '';
+        details.style.transition = '';
+      });
+    } else {
+      // Opening — set open but pin to collapsed height, then animate
+      details.style.height = summaryH + 'px';
+      details.style.overflow = 'hidden';
+      details.open = true;
+      const fullH = details.scrollHeight;
+      requestAnimationFrame(() => {
+        details.style.transition = 'height 0.2s ease';
+        details.style.height = fullH + 'px';
+      });
+      details.addEventListener('transitionend', function done() {
+        details.removeEventListener('transitionend', done);
+        details.style.height = '';
+        details.style.overflow = '';
+        details.style.transition = '';
+      });
+    }
+  });
+});
+
+// ── Init ──────────────────────────────────────────────────────────────
+syncColor('lightFill', 'lightFillHex');
+syncColor('lightStroke', 'lightStrokeHex');
+syncColor('darkFill', 'darkFillHex');
+syncColor('darkStroke', 'darkStrokeHex');
+
+bindSlider('shapeScale', 'shapeScaleVal', 2);
+bindSlider('fontSize', 'fontSizeVal');
+bindSlider('yOffset', 'yOffsetVal');
+bindSlider('xOffset', 'xOffsetVal');
+bindSlider('strokeWidth', 'strokeWidthVal');
+
+buildShapes();
+buildPresets();
+loadFont('open-sans');
+</script>
+
+</body>
+</html>

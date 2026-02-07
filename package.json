@@ -1,0 +1,17 @@
+{
+  "name": "letter-icon-composer",
+  "version": "1.0.0",
+  "description": "Generate composite letter-on-shape SVG icons for IntelliJ structure & completion views",
+  "type": "module",
+  "main": "core.js",
+  "bin": {
+    "letter-icon": "./cli.js"
+  },
+  "scripts": {
+    "dev": "npx serve .",
+    "generate": "node cli.js"
+  },
+  "dependencies": {
+    "opentype.js": "^1.3.4"
+  }
+}
