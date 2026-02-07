@@ -33,12 +33,14 @@ import { optimize } from 'svgo';
 import {
   PRESETS,
   SHAPES,
+  MODIFIERS,
   findPreset,
   getFontUrl,
   getGoogleFontUrl,
   calibrateFontSize,
   generateSVG,
 } from './core.js';
+import { createModifierEngine } from './modifier.js';
 
 // ── CLI Argument Parsing ─────────────────────────────────────────────
 const { values: args } = parseArgs({
@@ -57,6 +59,10 @@ const { values: args } = parseArgs({
     'y-offset':  { type: 'string', default: '0' },
     'stroke-width': { type: 'string', default: '1' },
     'shape-scale':  { type: 'string' },
+    modifier:    { type: 'string',  short: 'm' },
+    'notch-width':  { type: 'string' },
+    'notch-height': { type: 'string' },
+    'notch-radius': { type: 'string' },
     name:        { type: 'string',  short: 'n' },
     out:         { type: 'string',  short: 'o', default: '.' },
     'light-fill':   { type: 'string' },
@@ -105,6 +111,12 @@ Fine Tuning:
   --stroke-width <n>       Shape stroke width (default: 1)
   --shape-scale <n>        Shape scale factor (default: per-shape or 1.0)
 
+Modifier:
+  -m, --modifier <name>    Badge modifier: ${Object.keys(MODIFIERS).join(', ')} (default: none)
+  --notch-width <n>        Notch width (default: 8)
+  --notch-height <n>       Notch height (default: 8)
+  --notch-radius <n>       Notch corner radius (default: 2)
+
 Output:
   -n, --name <name>        Base file name (default: derived from letter)
   -o, --out <dir>          Output directory (default: current directory)
@@ -113,14 +125,16 @@ Output:
   --stdout                 Print SVG to stdout instead of writing files
 
 Batch:
-  --list <preset|shape>    List available presets or shapes and exit
+  --list <preset|shape|modifier>  List available presets, shapes, or modifiers and exit
 
 Examples:
   node cli.js -l N -s circle -c blue -o ./icons/
   node cli.js -l E -s hexagon -c purple --name element
   node cli.js -l R -s document -c blue --font inter --bold
+  node cli.js -l N -s circle -c blue -m plus
   node cli.js --list presets
   node cli.js --list shapes
+  node cli.js --list modifiers
 `);
   process.exit(0);
 }
@@ -141,8 +155,14 @@ if (args.list) {
       const tag = shape.official ? ' (JetBrains)' : '';
       console.log(`  ${key.padEnd(maxLen)}  ${shape.label}${tag}`);
     }
+  } else if (args.list === 'modifiers') {
+    console.log('Available modifiers:\n');
+    const maxLen = Math.max(...Object.keys(MODIFIERS).map(k => k.length));
+    for (const [key, mod] of Object.entries(MODIFIERS)) {
+      console.log(`  ${key.padEnd(maxLen)}  ${mod.label}`);
+    }
   } else {
-    console.error(`Unknown list: "${args.list}". Use "presets" or "shapes".`);
+    console.error(`Unknown list: "${args.list}". Use "presets", "shapes", or "modifiers".`);
     process.exit(1);
   }
   process.exit(0);
@@ -156,6 +176,12 @@ if (!args.letter) {
 
 if (!SHAPES[args.shape]) {
   console.error(`Error: Unknown shape "${args.shape}". Valid shapes: ${Object.keys(SHAPES).join(', ')}`);
+  process.exit(1);
+}
+
+const modifierKey = args.modifier || 'none';
+if (!MODIFIERS[modifierKey]) {
+  console.error(`Error: Unknown modifier "${modifierKey}". Valid modifiers: ${Object.keys(MODIFIERS).join(', ')}`);
   process.exit(1);
 }
 
@@ -245,6 +271,23 @@ function optimizeSVG(svgString) {
   return optimize(svgString, svgoConfig).data;
 }
 
+// ── Modifier Engine ──────────────────────────────────────────────────
+let applyModifier = (svg) => svg;
+if (modifierKey !== 'none') {
+  let paper = null;
+  try {
+    paper = (await import('paper-jsdom')).default;
+  } catch {
+    console.error('\x1b[33m\u26A0\uFE0F  paper-jsdom not found — using clipPath fallback (no path subtraction)\x1b[0m');
+    console.error('\x1b[33m   For cleaner output, install: \x1b[1mnpm install paper-jsdom canvas jsdom\x1b[0m\n');
+  }
+  ({ applyModifier } = await createModifierEngine(paper));
+}
+
+const nw = args['notch-width'] ? parseFloat(args['notch-width']) : 8;
+const nh = args['notch-height'] ? parseFloat(args['notch-height']) : 8;
+const nr = args['notch-radius'] ? parseFloat(args['notch-radius']) : 2;
+
 // ── Generate ─────────────────────────────────────────────────────────
 const font = await loadFont();
 
@@ -279,8 +322,17 @@ for (const r of [lightResult, darkResult]) {
   }
 }
 
-const lightSVG = optimizeSVG(lightResult.svg);
-const darkSVG = optimizeSVG(darkResult.svg);
+let rawLight = lightResult.svg;
+let rawDark = darkResult.svg;
+
+if (modifierKey !== 'none') {
+  const vbs = lightResult.viewBoxSize;
+  rawLight = applyModifier(rawLight, modifierKey, colors.lightStroke, vbs, nw, nh, nr);
+  rawDark = applyModifier(rawDark, modifierKey, colors.darkStroke, vbs, nw, nh, nr);
+}
+
+const lightSVG = optimizeSVG(rawLight);
+const darkSVG = optimizeSVG(rawDark);
 
 // ── Output ───────────────────────────────────────────────────────────
 const baseName = args.name || args.letter.toLowerCase();
