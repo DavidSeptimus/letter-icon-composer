@@ -52,7 +52,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 0 auto 24px;
   }
   h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
@@ -73,9 +73,9 @@
 
   .layout {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: 280px 1fr 280px;
     gap: 24px;
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 0 auto;
   }
 
@@ -442,7 +442,7 @@
   }
 
   .footer {
-    max-width: 1100px;
+    max-width: 1400px;
     border-top: 1px solid var(--surface2);
     margin: 60px auto 0;
     padding-top: 32px;
@@ -502,6 +502,70 @@
         <div class="preset-grid" id="presetGrid"></div>
       </details>
 
+    </div>
+  </div>
+
+  <!-- Preview Panel -->
+  <div class="preview-area">
+    <div class="preview-row">
+      <div class="preview-card preview-light">
+        <div class="preview-card-title">Light Theme</div>
+        <div class="preview-canvas-wrap">
+          <div>
+            <div class="preview-zoomed" id="previewLightZoomed"></div>
+          </div>
+          <div class="preview-actual">
+            <div id="previewLightActual"></div>
+            <span id="lightSizeLabel">16×16</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="copyLight">Copy SVG</button>
+          <button class="btn" id="downloadLight">Download</button>
+        </div>
+      </div>
+      <div class="preview-card preview-dark">
+        <div class="preview-card-title">Dark Theme</div>
+        <div class="preview-canvas-wrap">
+          <div>
+            <div class="preview-zoomed" id="previewDarkZoomed"></div>
+          </div>
+          <div class="preview-actual">
+            <div id="previewDarkActual"></div>
+            <span id="darkSizeLabel">16×16</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="copyDark">Copy SVG</button>
+          <button class="btn" id="downloadDark">Download</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="padding: 8px 0;">
+      <button class="btn" id="downloadBoth">Download Both (Light + Dark)</button>
+    </div>
+
+    <div class="code-panel">
+      <div class="code-tabs">
+        <button class="code-tab active" data-tab="light" id="tabLight">Light SVG</button>
+        <button class="code-tab" data-tab="dark" id="tabDark">Dark SVG</button>
+      </div>
+      <div class="code-block" id="codeBlock"></div>
+    </div>
+
+    <div class="error-card" id="errorCard" style="display:none">
+      <div class="error-card-title">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM7.25 5h1.5v4h-1.5V5zm.75 6.5a.75.75 0 110-1.5.75.75 0 010 1.5z" fill="currentColor"/></svg>
+        Error
+      </div>
+      <div class="error-card-message" id="errorMessage"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div>
+    <div class="panel">
       <details class="section">
         <summary class="section-title">Light Theme Colors</summary>
         <div class="color-row">
@@ -610,64 +674,6 @@
           Downloads as <code>{name}.svg</code> and <code>{name}_dark.svg</code>
         </div>
       </details>
-    </div>
-  </div>
-
-  <!-- Preview Panel -->
-  <div class="preview-area">
-    <div class="preview-row">
-      <div class="preview-card preview-light">
-        <div class="preview-card-title">Light Theme</div>
-        <div class="preview-canvas-wrap">
-          <div>
-            <div class="preview-zoomed" id="previewLightZoomed"></div>
-          </div>
-          <div class="preview-actual">
-            <div id="previewLightActual"></div>
-            <span id="lightSizeLabel">16×16</span>
-          </div>
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-secondary" id="copyLight">Copy SVG</button>
-          <button class="btn" id="downloadLight">Download</button>
-        </div>
-      </div>
-      <div class="preview-card preview-dark">
-        <div class="preview-card-title">Dark Theme</div>
-        <div class="preview-canvas-wrap">
-          <div>
-            <div class="preview-zoomed" id="previewDarkZoomed"></div>
-          </div>
-          <div class="preview-actual">
-            <div id="previewDarkActual"></div>
-            <span id="darkSizeLabel">16×16</span>
-          </div>
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-secondary" id="copyDark">Copy SVG</button>
-          <button class="btn" id="downloadDark">Download</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="btn-row" style="padding: 8px 0;">
-      <button class="btn" id="downloadBoth">Download Both (Light + Dark)</button>
-    </div>
-
-    <div class="code-panel">
-      <div class="code-tabs">
-        <button class="code-tab active" data-tab="light" id="tabLight">Light SVG</button>
-        <button class="code-tab" data-tab="dark" id="tabDark">Dark SVG</button>
-      </div>
-      <div class="code-block" id="codeBlock"></div>
-    </div>
-
-    <div class="error-card" id="errorCard" style="display:none">
-      <div class="error-card-title">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM7.25 5h1.5v4h-1.5V5zm.75 6.5a.75.75 0 110-1.5.75.75 0 010 1.5z" fill="currentColor"/></svg>
-        Error
-      </div>
-      <div class="error-card-message" id="errorMessage"></div>
     </div>
   </div>
 </div>
