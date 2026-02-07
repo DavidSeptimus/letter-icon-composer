@@ -329,6 +329,28 @@
   .preview-zoomed .pixel-grid svg { display: block; }
   .preview-zoomed.show-grid .pixel-grid { display: block; }
 
+  .preview-zoomed .size-guide {
+    display: none;
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .preview-zoomed .size-guide svg { display: block; }
+  .preview-zoomed.show-guide-shape .size-guide-shape { display: block; }
+  .preview-zoomed.show-guide-letter .size-guide-letter { display: block; }
+  .preview-zoomed.show-guide-notch .size-guide-notch { display: block; }
+  .preview-zoomed.show-guide-badge .size-guide-badge { display: block; }
+
+  .toggle-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    margin: 0 4px;
+    align-self: center;
+  }
+
   .preview-toggles {
     display: flex;
     gap: 4px;
@@ -743,6 +765,19 @@
       <button class="style-toggle" id="togglePixelGrid" title="Pixel grid overlay">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1"><line x1="4" y1="0" x2="4" y2="16"/><line x1="8" y1="0" x2="8" y2="16"/><line x1="12" y1="0" x2="12" y2="16"/><line x1="0" y1="4" x2="16" y2="4"/><line x1="0" y1="8" x2="16" y2="8"/><line x1="0" y1="12" x2="16" y2="12"/></svg>
       </button>
+      <div class="toggle-separator"></div>
+      <button class="style-toggle" id="toggleGuideShape" title="Shape size guide">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="rgba(255,100,100,0.85)" stroke-width="1.2"><rect x="2" y="2" width="12" height="12" rx="1" stroke-dasharray="3 2"/></svg>
+      </button>
+      <button class="style-toggle" id="toggleGuideLetter" title="Letter size guide">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="rgba(100,200,255,0.85)" stroke="none"><text x="8" y="12.5" text-anchor="middle" font-size="12" font-weight="600" font-family="sans-serif">A</text></svg>
+      </button>
+      <button class="style-toggle" id="toggleGuideNotch" style="display:none" title="Notch size guide">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="rgba(255,180,50,0.85)" stroke-width="1.2"><path d="M10 14H14V10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="style-toggle" id="toggleGuideBadge" style="display:none" title="Badge size guide">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="rgba(130,220,100,0.85)" stroke-width="1.2"><rect x="8" y="8" width="6" height="6" rx="0.5"/></svg>
+      </button>
     </div>
 
     <div class="preview-row">
@@ -752,6 +787,10 @@
           <div>
             <div class="preview-zoomed" id="previewLightZoomed">
               <div class="pixel-grid" id="pixelGridLight"></div>
+              <div class="size-guide size-guide-shape" id="guideShapeLight"></div>
+              <div class="size-guide size-guide-letter" id="guideLetterLight"></div>
+              <div class="size-guide size-guide-notch" id="guideNotchLight"></div>
+              <div class="size-guide size-guide-badge" id="guideBadgeLight"></div>
             </div>
           </div>
           <div class="preview-actual">
@@ -770,6 +809,10 @@
           <div>
             <div class="preview-zoomed" id="previewDarkZoomed">
               <div class="pixel-grid" id="pixelGridDark"></div>
+              <div class="size-guide size-guide-shape" id="guideShapeDark"></div>
+              <div class="size-guide size-guide-letter" id="guideLetterDark"></div>
+              <div class="size-guide size-guide-notch" id="guideNotchDark"></div>
+              <div class="size-guide size-guide-badge" id="guideBadgeDark"></div>
             </div>
           </div>
           <div class="preview-actual">
@@ -1240,6 +1283,234 @@ function drawPixelGrid(id) {
     `<g fill="none" stroke="rgba(200,200,200,0.25)" stroke-width="${sw}">${lines}</g></svg>`;
 }
 
+// ── Size Guide Overlays ───────────────────────────────────────────────
+const GUIDE_COLORS = {
+  shape:  'rgba(255,100,100,0.85)',
+  letter: 'rgba(100,200,255,0.85)',
+  notch:  'rgba(255,180,50,0.85)',
+  badge:  'rgba(130,220,100,0.85)',
+};
+
+function drawBracketGuide(x, y, w, h, label, color, viewBoxSize) {
+  const s = viewBoxSize;
+  const pad = 0.4;          // outset from bounding box
+  const arm = Math.min(1.2, Math.min(w, h) / 3);  // bracket arm length
+  const sw = 0.25;          // stroke width in viewBox units
+  const bx = x - pad, by = y - pad, bw = w + pad * 2, bh = h + pad * 2;
+
+  // Four L-shaped corner brackets (outset)
+  const brackets = [
+    // top-left
+    `M${bx},${by + arm} L${bx},${by} L${bx + arm},${by}`,
+    // top-right
+    `M${bx + bw - arm},${by} L${bx + bw},${by} L${bx + bw},${by + arm}`,
+    // bottom-right
+    `M${bx + bw},${by + bh - arm} L${bx + bw},${by + bh} L${bx + bw - arm},${by + bh}`,
+    // bottom-left
+    `M${bx + arm},${by + bh} L${bx},${by + bh} L${bx},${by + bh - arm}`,
+  ];
+
+  // Label: "W×H" centered above top edge, or below if clipping
+  const wLabel = Math.round(w * 10) / 10;
+  const hLabel = Math.round(h * 10) / 10;
+  const text = `${wLabel}\u00d7${hLabel}`;
+  const fontSize = 1.1;
+  let labelY = by - 0.5;
+  let anchor = 'auto';
+  if (labelY < fontSize + 0.3) {
+    // Would clip — place inside top of box
+    labelY = by + fontSize + 0.3;
+  }
+  const labelX = bx + bw / 2;
+
+  return `<svg viewBox="0 0 ${s} ${s}" width="128" height="128" xmlns="http://www.w3.org/2000/svg">` +
+    `<g fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">` +
+    brackets.map(d => `<path d="${d}"/>`).join('') +
+    `</g>` +
+    `<text x="${labelX}" y="${labelY}" fill="${color}" font-size="${fontSize}" font-family="sans-serif" font-weight="600" text-anchor="middle" dominant-baseline="${anchor}">${text}</text>` +
+    `</svg>`;
+}
+
+function computeShapeBounds(shapeName, strokeWidth, shapeScale) {
+  const shapeDef = SHAPES[shapeName];
+  if (!shapeDef) return null;
+
+  const baseVB = shapeDef.viewBoxSize ?? 16;
+  const nc = baseVB / 2;
+  const sc = shapeScale;
+  const sw = strokeWidth;
+  const s = lastViewBoxSize;
+  const center = s / 2;
+
+  // Compute visual bounding box in native (pre-scale) coordinates
+  let nx, ny, nw, nh;
+
+  if (shapeName === 'circle') {
+    // circle at (nc,nc), r = nc-1-sw/2, visual outer edge = r+sw/2 = nc-1
+    const ext = nc - 1;
+    nx = nc - ext; ny = nc - ext;
+    nw = 2 * ext; nh = 2 * ext;
+  } else if (shapeName === 'roundrect') {
+    // rect at inset=1.5+sw/2, visual outer edge at 1.5 from viewBox edge
+    nx = 1.5; ny = 1.5;
+    nw = baseVB - 3; nh = baseVB - 3;
+  } else if (shapeName === 'diamond' || shapeName === 'rounded-diamond') {
+    // rotated 45deg rect; tips at nc ± (nc-1-sw/2), visual extent ± sw/2 more = nc ± (nc-1)
+    const ext = nc - 1;
+    nx = nc - ext; ny = nc - ext;
+    nw = 2 * ext; nh = 2 * ext;
+  } else if (shapeName === 'shield') {
+    // hardcoded path: x 2.5..13.5, y ~1.54..~15.40, plus stroke
+    nx = 2.5 - sw / 2; ny = 1.54 - sw / 2;
+    nw = 11 + sw; nh = 13.86 + sw;
+  } else if (shapeName === 'dashed-circle') {
+    // fill circle ≈ center 8, radius ~7; dashed strokes are filled paths (no additional stroke)
+    nx = 1; ny = 1; nw = 14; nh = 14;
+  } else if (shapeName === 'dashed-rect') {
+    // fill rect from (2,2) to (14,14); dashed strokes are filled paths
+    nx = 2; ny = 2; nw = 12; nh = 12;
+  } else if (shapeName === 'composite') {
+    // back flap (5,2)→(13,10) + front rect (2,5)→(11,14), both with stroke
+    nx = 2 - sw / 2; ny = 2 - sw / 2;
+    nw = 11 + sw; nh = 12 + sw;
+  } else if (shapeName === 'hexagon') {
+    // path: M8 2.5 L13 5 v6 L8 13.5 L3 11 v-6 Z, with stroke
+    nx = 3 - sw / 2; ny = 2.5 - sw / 2;
+    nw = 10 + sw; nh = 11 + sw;
+  } else if (shapeName === 'document') {
+    // main path x 2.75..13.25, y 2.25..13.75, with stroke
+    nx = 2.75 - sw / 2; ny = 2.25 - sw / 2;
+    nw = 10.5 + sw; nh = 11.5 + sw;
+  } else {
+    return null;
+  }
+
+  // Apply scale transform: translate(center) scale(sc) translate(-nc)
+  if (sc !== 1.0) {
+    const x1 = center + sc * (nx - nc);
+    const y1 = center + sc * (ny - nc);
+    const x2 = center + sc * (nx + nw - nc);
+    const y2 = center + sc * (ny + nh - nc);
+    return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+  }
+
+  return { x: nx, y: ny, w: nw, h: nh };
+}
+
+function computeGuideBounds() {
+  const s = lastViewBoxSize;
+  const bounds = { shape: null, letter: null, notch: null, badge: null };
+
+  // ── Shape bounds: analytical computation from shape geometry
+  const sw = parseFloat(document.getElementById('strokeWidth').value);
+  const sc = parseFloat(document.getElementById('shapeScale').value);
+  bounds.shape = computeShapeBounds(currentShape, sw, sc);
+
+  // ── Letter bounds: compute from font metrics
+  if (currentFont) {
+    const letter = document.getElementById('letter').value;
+    const fontSize = parseFloat(document.getElementById('fontSize').value);
+    const xOff = parseFloat(document.getElementById('xOffset').value);
+    const yOff = parseFloat(document.getElementById('yOffset').value);
+    const shapeDef = SHAPES[currentShape];
+    const xAdj = xOff + (shapeDef?.defaultXOffset ?? 0);
+    const yAdj = yOff + (shapeDef?.defaultYOffset ?? 0);
+    const center = s / 2;
+
+    if (letter) {
+      try {
+        const path = currentFont.getPath(letter, 0, 0, fontSize);
+        const bb = path.getBoundingBox();
+        const pw = bb.x2 - bb.x1;
+        const ph = bb.y2 - bb.y1;
+        if (pw > 0 && ph > 0) {
+          const tx = center + xAdj - pw / 2;
+          const ty = center + yAdj - ph / 2;
+          bounds.letter = { x: tx, y: ty, w: pw, h: ph };
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // ── Notch bounds
+  if (customBadgeSvg) {
+    const nw = parseFloat(document.getElementById('notchWidth').value);
+    const nh = parseFloat(document.getElementById('notchHeight').value);
+    bounds.notch = { x: s - nw, y: s - nh, w: nw, h: nh };
+  }
+
+  // ── Badge bounds: replicate computeUniformBadgeFit math
+  if (customBadgeSvg) {
+    const nw = parseFloat(document.getElementById('notchWidth').value);
+    const nh = parseFloat(document.getElementById('notchHeight').value);
+    const left = s - nw, top = s - nh;
+    const bxOff = parseFloat(document.getElementById('badgeXOffset').value);
+    const byOff = parseFloat(document.getElementById('badgeYOffset').value);
+    const userScale = parseFloat(document.getElementById('badgeScale').value);
+
+    // Parse badge viewBox
+    let minX = 0, minY = 0, badgeW = 16, badgeH = 16;
+    const vbMatch = customBadgeSvg.match(/viewBox=["']([^"']+)["']/);
+    if (vbMatch) {
+      const parts = vbMatch[1].trim().split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+        minX = parts[0]; minY = parts[1];
+        badgeW = parts[2]; badgeH = parts[3];
+      }
+    } else {
+      const wMatch = customBadgeSvg.match(/\bwidth=["']([0-9.]+)["']/);
+      const hMatch = customBadgeSvg.match(/\bheight=["']([0-9.]+)["']/);
+      if (wMatch) badgeW = parseFloat(wMatch[1]);
+      if (hMatch) badgeH = parseFloat(hMatch[1]);
+    }
+
+    const fitScale = Math.min((nw - 2) / badgeW, (nh - 2) / badgeH);
+    const scale = fitScale * userScale;
+    const tx = s - (minX + badgeW) * scale + bxOff;
+    const ty = s - (minY + badgeH) * scale + byOff;
+    const finalW = badgeW * scale;
+    const finalH = badgeH * scale;
+    bounds.badge = { x: tx, y: ty, w: finalW, h: finalH };
+  }
+
+  return bounds;
+}
+
+function drawSizeGuides() {
+  const s = lastViewBoxSize;
+  const bounds = computeGuideBounds();
+
+  const types = ['shape', 'letter', 'notch', 'badge'];
+  const variants = ['Light', 'Dark'];
+
+  for (const type of types) {
+    const b = bounds[type];
+    for (const v of variants) {
+      const el = document.getElementById(`guide${type.charAt(0).toUpperCase() + type.slice(1)}${v}`);
+      if (!el) continue;
+      if (b) {
+        el.innerHTML = drawBracketGuide(b.x, b.y, b.w, b.h, '', GUIDE_COLORS[type], s);
+      } else {
+        el.innerHTML = '';
+      }
+    }
+  }
+
+  // Show/hide notch+badge toggle buttons based on badge presence
+  const hasBadge = customBadgeSvg !== null;
+  document.getElementById('toggleGuideNotch').style.display = hasBadge ? '' : 'none';
+  document.getElementById('toggleGuideBadge').style.display = hasBadge ? '' : 'none';
+
+  // If badge was removed while guides were active, remove the classes
+  if (!hasBadge) {
+    document.querySelectorAll('.preview-zoomed').forEach(el => {
+      el.classList.remove('show-guide-notch', 'show-guide-badge');
+    });
+    document.getElementById('toggleGuideNotch').classList.remove('active');
+    document.getElementById('toggleGuideBadge').classList.remove('active');
+  }
+}
+
 // ── Render & Preview ──────────────────────────────────────────────────
 function render() {
   clearError();
@@ -1290,6 +1561,9 @@ function render() {
   const sizeText = `${lastViewBoxSize}\u00d7${lastViewBoxSize}`;
   document.getElementById('lightSizeLabel').textContent = sizeText;
   document.getElementById('darkSizeLabel').textContent = sizeText;
+
+  // Size guides
+  drawSizeGuides();
 
   // Code block
   updateCodeBlock();
@@ -1578,6 +1852,10 @@ function setPreviewToggle(btnId, className, storageKey) {
 
 document.getElementById('toggleCheckerboard').addEventListener('click', () => setPreviewToggle('toggleCheckerboard', 'checkerboard', 'preview-checkerboard'));
 document.getElementById('togglePixelGrid').addEventListener('click', () => setPreviewToggle('togglePixelGrid', 'show-grid', 'preview-grid'));
+document.getElementById('toggleGuideShape').addEventListener('click', () => setPreviewToggle('toggleGuideShape', 'show-guide-shape', 'preview-guide-shape'));
+document.getElementById('toggleGuideLetter').addEventListener('click', () => setPreviewToggle('toggleGuideLetter', 'show-guide-letter', 'preview-guide-letter'));
+document.getElementById('toggleGuideNotch').addEventListener('click', () => setPreviewToggle('toggleGuideNotch', 'show-guide-notch', 'preview-guide-notch'));
+document.getElementById('toggleGuideBadge').addEventListener('click', () => setPreviewToggle('toggleGuideBadge', 'show-guide-badge', 'preview-guide-badge'));
 document.getElementById('toggleOptimize').addEventListener('change', (e) => {
   svgoEnabled = e.target.checked;
   localStorage.setItem('svgo-enabled', svgoEnabled);
@@ -1806,6 +2084,22 @@ if (localStorage.getItem('preview-checkerboard') === 'true') {
 if (localStorage.getItem('preview-grid') === 'true') {
   document.getElementById('togglePixelGrid').classList.add('active');
   document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('show-grid'));
+}
+if (localStorage.getItem('preview-guide-shape') === 'true') {
+  document.getElementById('toggleGuideShape').classList.add('active');
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('show-guide-shape'));
+}
+if (localStorage.getItem('preview-guide-letter') === 'true') {
+  document.getElementById('toggleGuideLetter').classList.add('active');
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('show-guide-letter'));
+}
+if (localStorage.getItem('preview-guide-notch') === 'true') {
+  document.getElementById('toggleGuideNotch').classList.add('active');
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('show-guide-notch'));
+}
+if (localStorage.getItem('preview-guide-badge') === 'true') {
+  document.getElementById('toggleGuideBadge').classList.add('active');
+  document.querySelectorAll('.preview-zoomed').forEach(el => el.classList.add('show-guide-badge'));
 }
 document.getElementById('toggleOptimize').checked = svgoEnabled;
 
