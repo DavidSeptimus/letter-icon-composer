@@ -47,6 +47,7 @@ export const SHAPES = {
   diamond: {
     official: true,
     label: 'Diamond',
+    viewBoxSize: 18,
     preview: '<rect x="3.13" y="3.13" width="9.75" height="9.75" rx="0.5" transform="rotate(45 8 8)" fill="none" stroke="currentColor" stroke-width="1"/>',
     generate: (fill, stroke, sw) => {
       const halfDiag = 7.4 - sw/2;
@@ -177,16 +178,17 @@ export function calibrateFontSize(font, letter = 'E', targetHeight = 7.0) {
 
 // ── Letter Path Generation ───────────────────────────────────────────
 /**
- * Generates an SVG <path> element for a letter centered in a 16x16 viewBox.
+ * Generates an SVG <path> element for a letter centered in the viewBox.
  * @param {object} font - An opentype.js Font object
  * @param {string} letter - The letter(s) to render
  * @param {string} fill - Fill color for the letter path
  * @param {number} fontSize - Font size in SVG units
  * @param {number} [xOff=0] - Horizontal offset from center
  * @param {number} [yOff=0] - Vertical offset from center
+ * @param {number} [center=8] - Center coordinate of the viewBox
  * @returns {{ path: string, error: string|null }}
  */
-export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff = 0) {
+export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff = 0, center = 8) {
   if (!font || !letter) return { path: '', error: null };
 
   try {
@@ -199,8 +201,8 @@ export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff 
       return { path: '', error: `The current font has no glyph for "${letter}".` };
     }
 
-    const cx = 8 + xOff;
-    const cy = 8 + yOff;
+    const cx = center + xOff;
+    const cy = center + yOff;
     const tx = cx - w / 2 - bb.x1;
     const ty = cy - h / 2 - bb.y1;
 
@@ -214,7 +216,9 @@ export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff 
 
 // ── Full SVG Assembly ────────────────────────────────────────────────
 /**
- * Generates a complete 16x16 SVG icon with shape background and letter overlay.
+ * Generates a complete SVG icon with shape background and letter overlay.
+ * The viewBox is 16x16 by default but expands automatically for scaled-up
+ * shapes or shapes that declare a larger native size (e.g. diamond → 18).
  * @param {object} params
  * @param {object} params.font - An opentype.js Font object
  * @param {string} params.letter - The letter(s) to render
@@ -227,7 +231,7 @@ export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff 
  * @param {number} [params.xOffset=0] - Horizontal letter offset
  * @param {number} [params.yOffset=0] - Vertical letter offset
  * @param {number} [params.shapeScale] - Shape scale factor (default per-shape or 1.0)
- * @returns {{ svg: string, error: string|null }}
+ * @returns {{ svg: string, error: string|null, viewBoxSize: number }}
  */
 export function generateSVG({
   font,
@@ -244,25 +248,31 @@ export function generateSVG({
 }) {
   const shapeDef = SHAPES[shape];
   if (!shapeDef) {
-    return { svg: '', error: `Unknown shape: "${shape}". Valid shapes: ${Object.keys(SHAPES).join(', ')}` };
+    return { svg: '', error: `Unknown shape: "${shape}". Valid shapes: ${Object.keys(SHAPES).join(', ')}`, viewBoxSize: 16 };
   }
+
+  const scale = shapeScale ?? shapeDef.defaultScale ?? 1.0;
+  const baseViewBox = shapeDef.viewBoxSize ?? 16;
+  const viewBoxSize = Math.max(baseViewBox, Math.ceil(16 * scale));
+  const center = viewBoxSize / 2;
 
   const size = fontSize ?? (font ? calibrateFontSize(font, letter) : 7.0);
   let shapeMarkup = shapeDef.generate(fill, stroke, strokeWidth);
 
-  const scale = shapeScale ?? shapeDef.defaultScale ?? 1.0;
-  if (scale !== 1.0) {
-    shapeMarkup = `<g transform="translate(8 8) scale(${scale}) translate(-8 -8)">\n    ${shapeMarkup}\n  </g>`;
+  // Center and scale shape geometry (designed for 16x16) within the viewBox
+  const needsTransform = scale !== 1.0 || center !== 8;
+  if (needsTransform) {
+    shapeMarkup = `<g transform="translate(${center} ${center}) scale(${scale}) translate(-8 -8)">\n    ${shapeMarkup}\n  </g>`;
   }
 
-  const { path: letterMarkup, error } = generateLetterPath(font, letter, letterColor, size, xOffset, yOffset);
+  const { path: letterMarkup, error } = generateLetterPath(font, letter, letterColor, size, xOffset, yOffset, center);
 
-  const svg = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  const svg = `<svg width="${viewBoxSize}" height="${viewBoxSize}" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" fill="none" xmlns="http://www.w3.org/2000/svg">
   ${shapeMarkup}
   ${letterMarkup}
 </svg>`;
 
-  return { svg, error };
+  return { svg, error, viewBoxSize };
 }
 
 // ── Preset Lookup ────────────────────────────────────────────────────

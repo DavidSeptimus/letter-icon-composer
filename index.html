@@ -596,7 +596,7 @@
           </div>
           <div class="preview-actual">
             <div id="previewLightActual"></div>
-            <span>16×16</span>
+            <span id="lightSizeLabel">16×16</span>
           </div>
         </div>
         <div class="btn-row">
@@ -612,7 +612,7 @@
           </div>
           <div class="preview-actual">
             <div id="previewDarkActual"></div>
-            <span>16×16</span>
+            <span id="darkSizeLabel">16×16</span>
           </div>
         </div>
         <div class="btn-row">
@@ -759,6 +759,8 @@ async function loadSystemFont(family) {
 }
 
 // ── SVG Generation (delegates to core.js) ─────────────────────────────
+let lastViewBoxSize = 16;
+
 function generateSVG(fill, stroke, letterColor, strokeWidth) {
   const letter = document.getElementById('letter').value;
   const fontSize = parseFloat(document.getElementById('fontSize').value);
@@ -766,7 +768,7 @@ function generateSVG(fill, stroke, letterColor, strokeWidth) {
   const yOff = parseFloat(document.getElementById('yOffset').value);
   const shapeScale = parseFloat(document.getElementById('shapeScale').value);
 
-  const { svg, error } = generateSVGCore({
+  const { svg, error, viewBoxSize } = generateSVGCore({
     font: currentFont,
     letter,
     shape: currentShape,
@@ -780,6 +782,7 @@ function generateSVG(fill, stroke, letterColor, strokeWidth) {
     shapeScale,
   });
 
+  lastViewBoxSize = viewBoxSize;
   if (error) showError(error);
   return svg;
 }
@@ -796,9 +799,10 @@ function render() {
   svgLight = generateSVG(lightFill, lightStroke, lightStroke, sw);
   svgDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
 
-  // Zoomed previews (128x128)
-  const lightZoomed = svgLight.replace('width="16" height="16"', 'width="128" height="128"');
-  const darkZoomed = svgDark.replace('width="16" height="16"', 'width="128" height="128"');
+  // Zoomed previews (128x128) — use regex to handle any viewBox size
+  const zoomRe = /width="\d+" height="\d+"/;
+  const lightZoomed = svgLight.replace(zoomRe, 'width="128" height="128"');
+  const darkZoomed = svgDark.replace(zoomRe, 'width="128" height="128"');
 
   document.getElementById('previewLightZoomed').innerHTML = lightZoomed;
   document.getElementById('previewDarkZoomed').innerHTML = darkZoomed;
@@ -806,6 +810,11 @@ function render() {
   // Actual size previews
   document.getElementById('previewLightActual').innerHTML = svgLight;
   document.getElementById('previewDarkActual').innerHTML = svgDark;
+
+  // Update size labels
+  const sizeText = `${lastViewBoxSize}\u00d7${lastViewBoxSize}`;
+  document.getElementById('lightSizeLabel').textContent = sizeText;
+  document.getElementById('darkSizeLabel').textContent = sizeText;
 
   // Code block
   updateCodeBlock();
