@@ -971,7 +971,7 @@
     <ol>
       <li><a href="https://opentype.js.org" target="_blank">opentype.js</a> converts font glyphs into SVG path data</li>
       <li>The path is composited onto a background shape</li>
-      <li>If a badge SVG is provided, the badge silhouette is cut from the icon corner and the badge is overlaid</li>
+      <li>If a badge SVG is provided, <a href="http://paperjs.org" target="_blank">Paper.js</a> builds the badge silhouette (expanding strokes into filled outlines via <a href="https://github.com/nicholaschiang/paperjs-offset" target="_blank">paperjs-offset</a>), offsets it by a configurable gap, and boolean-subtracts it from each background shape; the badge is then overlaid in the cleared area</li>
       <li><a href="https://svgo.dev" target="_blank">SVGO</a> optimizes the final SVG</li>
     </ol>
     <div class="flowchart">
@@ -1022,13 +1022,13 @@
         <!-- Badge SVG (parallelogram) -->
         <polygon points="443,72 517,72 509,96 435,96" class="fc-node" fill="var(--surface2)" stroke="var(--border)"/>
         <text x="476" y="84" class="fc-label" font-size="9">Badge SVG</text>
-        <!-- Arrow from Badge SVG to Notch+Fit -->
+        <!-- Arrow from Badge SVG to Cut + Overlay -->
         <line x1="521" y1="84" x2="539" y2="84" class="fc-arrow"/>
         <polygon points="539,80 547,84 539,88" class="fc-head"/>
-        <!-- Notch + Fit (stadium) -->
+        <!-- Cut + Overlay (stadium) -->
         <rect x="549" y="68" width="80" height="32" rx="16" ry="16" class="fc-node" fill="var(--surface2)" stroke="var(--accent)"/>
-        <text x="589" y="84" class="fc-label" fill="var(--accent)" font-size="9">Notch + Fit</text>
-        <!-- Arrow from Notch+Fit up to join main line before SVGO -->
+        <text x="589" y="84" class="fc-label" fill="var(--accent)" font-size="9">Cut + Overlay</text>
+        <!-- Arrow from Cut + Overlay up to join main line before SVGO -->
         <line x1="633" y1="84" x2="653" y2="84" class="fc-arrow"/>
         <line x1="653" y1="84" x2="653" y2="46" class="fc-arrow"/>
         <polygon points="649,46 653,40 657,46" class="fc-head"/>
@@ -1044,7 +1044,11 @@
       </svg>
     </div>
   </details>
-  Licensed under <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">Apache 2.0</a>
+  Powered by <a href="https://opentype.js.org" target="_blank">opentype.js</a>,
+  <a href="http://paperjs.org" target="_blank">Paper.js</a>,
+  <a href="https://github.com/nicholaschiang/paperjs-offset" target="_blank">paperjs-offset</a>,
+  and <a href="https://svgo.dev" target="_blank">SVGO</a>
+  &middot; Licensed under <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">Apache 2.0</a>
   &middot; This site is not affiliated with JetBrains s.r.o.
 </footer>
 

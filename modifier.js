@@ -204,8 +204,33 @@ async function createFullEngine(paper) {
       if (fill === 'none' && (!stroke || stroke === 'none')) return;
 
       const p = svgElToPaperPath(el);
-      if (p) {
-        if (parentTransform) applyPaperTransform(p, parentTransform);
+      if (!p) return;
+      if (parentTransform) applyPaperTransform(p, parentTransform);
+
+      const sw = parseFloat(el.getAttribute('stroke-width')) || 0;
+      const hasStroke = stroke && stroke !== 'none' && sw > 0;
+      const isFillNone = fill === 'none';
+
+      if (hasStroke) {
+        const joinStyle = el.getAttribute('stroke-linejoin') === 'round' ? 'round' : 'miter';
+
+        if (p.closed) {
+          // Closed stroked path: expand outward by sw/2 to get the outer boundary
+          // as a filled path (includes interior). This ensures the full enclosed
+          // area is part of the silhouette, not just the stroke ring.
+          const outer = PaperOffset.offset(p, sw / 2, { join: joinStyle, insert: false });
+          p.remove();
+          if (outer) paths.push(outer);
+        } else {
+          // Open path: offsetStroke to get the stroke area as a filled shape
+          const capStyle = el.getAttribute('stroke-linecap') === 'round' ? 'round' : 'butt';
+          const strokeOutline = PaperOffset.offsetStroke(p, sw / 2, {
+            join: joinStyle, cap: capStyle, insert: false
+          });
+          p.remove();
+          if (strokeOutline) paths.push(strokeOutline);
+        }
+      } else {
         paths.push(p);
       }
     }

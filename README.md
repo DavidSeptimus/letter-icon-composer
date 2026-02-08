@@ -20,7 +20,7 @@ IntelliJ plugin developers building custom language support who need icons consi
 
 1. [opentype.js](https://opentype.js.org) parses a font file and converts glyphs into SVG path data
 2. The letter path is composited onto the selected background shape with the appropriate theme colors
-3. If a badge SVG is provided, the badge silhouette (expanded by a configurable gap) is cut from the icon shape and the badge is overlaid ([Paper.js](http://paperjs.org) boolean subtraction for simple shapes, clipPath fallback for complex paths)
+3. If a badge SVG is provided, [Paper.js](http://paperjs.org) builds the badge silhouette — strokes are expanded into filled outlines via [paperjs-offset](https://github.com/nicholaschiang/paperjs-offset) so the full visual extent is captured — then the silhouette is offset by a configurable gap and boolean-subtracted from each background shape; the badge is overlaid in the cleared area (clipPath fallback when Paper.js is unavailable)
 4. [SVGO](https://svgo.dev) optimizes the final SVG using the same configuration as the [Sketch SVGO Compressor plugin](https://www.sketchapp.com/extensions/plugins/svgo-compressor/), which is the [recommended method](https://plugins.jetbrains.com/docs/intellij/icons.html) for optimizing icons per the JetBrains platform guidelines
 5. Light and dark theme variants are produced together
 
@@ -31,7 +31,7 @@ flowchart LR
     C --> D{Compose}
     D --> E{Badge?}
     E -- yes --> F[\Badge SVG/]
-    F --> G(Silhouette Cut)
+    F --> G(Cut + Overlay)
     G --> H(SVGO)
     E -- no --> H
     H --> I((Icon))
@@ -104,6 +104,13 @@ Each invocation produces two files:
 - `<name>_dark.svg` — dark theme variant
 
 The `_dark` suffix follows the IntelliJ convention for automatic theme-based icon resolution.
+
+## Acknowledgments
+
+- [opentype.js](https://opentype.js.org) — font parsing and glyph-to-SVG conversion
+- [Paper.js](http://paperjs.org) — boolean path operations for badge cutouts
+- [paperjs-offset](https://github.com/nicholaschiang/paperjs-offset) — path offsetting and stroke expansion (the engine behind clean badge silhouette cuts)
+- [SVGO](https://svgo.dev) — SVG optimization
 
 ## License
 
