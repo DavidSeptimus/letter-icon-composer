@@ -174,7 +174,7 @@ async function createFullEngine(paper) {
 
   function applyPaperTransform(pp, transformStr) {
     const transforms = [];
-    const re = /(translate|scale|rotate)\(([^)]+)\)/g;
+    const re = /(translate|scale|rotate|matrix|skewX|skewY)\(([^)]+)\)/g;
     let m;
     while ((m = re.exec(transformStr)) !== null)
       transforms.push({ type: m[1], nums: m[2].split(/[\s,]+/).map(Number) });
@@ -183,6 +183,9 @@ async function createFullEngine(paper) {
       if (type === 'translate') pp.translate(new paper.Point(nums[0], nums[1] || 0));
       else if (type === 'scale') pp.scale(nums[0], nums[1] ?? nums[0], new paper.Point(0, 0));
       else if (type === 'rotate') pp.rotate(nums[0], new paper.Point(nums[1] || 0, nums[2] || 0));
+      else if (type === 'matrix') pp.transform(new paper.Matrix(nums[0], nums[1], nums[2], nums[3], nums[4], nums[5]));
+      else if (type === 'skewX') pp.transform(new paper.Matrix(1, 0, Math.tan(nums[0] * Math.PI / 180), 1, 0, 0));
+      else if (type === 'skewY') pp.transform(new paper.Matrix(1, Math.tan(nums[0] * Math.PI / 180), 0, 1, 0, 0));
     }
   }
 
