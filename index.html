@@ -575,6 +575,44 @@
   }
   .badge-clear-btn:hover { color: var(--error); }
 
+  .anchor-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 24px);
+    gap: 3px;
+    margin-top: 6px;
+  }
+  .anchor-cell {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface2);
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: var(--ay);
+    justify-content: var(--ax);
+    padding: 4px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .anchor-cell:hover {
+    border-color: var(--accent);
+  }
+  .anchor-cell.active {
+    border-color: var(--accent);
+    background: rgba(53,116,240,0.15);
+  }
+  .anchor-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .anchor-cell.active .anchor-dot {
+    background: var(--accent);
+  }
+
   .footer {
     max-width: 1400px;
     border-top: 1px solid var(--surface2);
@@ -713,10 +751,14 @@
           <button class="badge-clear-btn" id="badgeClearBtn" title="Remove">&times;</button>
         </div>
         <div id="badgeTuning" style="display:none">
-          <div style="display:flex;justify-content:flex-end;margin-top:6px">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-top:6px">
+            <div>
+              <label style="margin:0">Anchor</label>
+              <div class="anchor-grid" id="anchorGrid"></div>
+            </div>
             <button class="btn btn-secondary" id="resetModifierSliders" style="padding:2px 8px;font-size:10px">Reset</button>
           </div>
-          <label style="margin-top:4px">Badge X Offset</label>
+          <label style="margin-top:8px">Badge X Offset</label>
           <div class="slider-row">
             <input type="range" id="badgeXOffset" min="-4" max="4" step="0.1" value="0">
             <span class="slider-val" id="badgeXOffsetVal">0.0</span>
@@ -728,7 +770,7 @@
           </div>
           <label style="margin-top:8px">Badge Scale</label>
           <div class="slider-row">
-            <input type="range" id="badgeScale" min="0.3" max="2.0" step="0.05" value="1">
+            <input type="range" id="badgeScale" min="0.1" max="4.0" step="0.05" value="1">
             <span class="slider-val" id="badgeScaleVal">1.00</span>
           </div>
           <label style="margin-top:8px">Gap</label>
@@ -1063,7 +1105,7 @@ import {
   boundFontSizeToShape as boundFontSizeToShapeCore,
   generateSVG as generateSVGCore,
 } from './core.js';
-import { createModifierEngine, computeBadgePlacement } from './modifier.js';
+import { createModifierEngine, computeBadgePlacement, ANCHOR_POINTS } from './modifier.js';
 
 // ── State ─────────────────────────────────────────────────────────────
 let currentFont = null;
@@ -1072,6 +1114,7 @@ let currentShape = 'circle';
 let activeTab = 'light';
 let customBadgeSvg = null;
 let customBadgeName = '';
+let badgeAnchor = 'br';
 let svgLight = '';
 let svgDark = '';
 let styles = { bold: false, italic: false };
@@ -1434,7 +1477,7 @@ function computeGuideBounds() {
     const userScale = parseFloat(document.getElementById('badgeScale').value);
     const gap = parseFloat(document.getElementById('badgeGap').value);
 
-    const p = computeBadgePlacement(customBadgeSvg, s, bxOff, byOff, userScale);
+    const p = computeBadgePlacement(customBadgeSvg, s, bxOff, byOff, userScale, badgeAnchor);
     const finalW = p.badgeW * p.scale;
     const finalH = p.badgeH * p.scale;
     const bx = p.tx + p.minX * p.scale;
@@ -1504,6 +1547,7 @@ function render() {
       badgeYOffset: parseFloat(document.getElementById('badgeYOffset').value),
       badgeScale: parseFloat(document.getElementById('badgeScale').value),
       badgeGap: parseFloat(document.getElementById('badgeGap').value),
+      badgeAnchor,
     };
     rawLight = applyModifier(rawLight, 'custom', lightStroke, lastViewBoxSize, opts);
     rawDark = applyModifier(rawDark, 'custom', darkStroke, lastViewBoxSize, opts);
@@ -1958,6 +2002,31 @@ bindSlider('badgeXOffset', 'badgeXOffsetVal');
 bindSlider('badgeYOffset', 'badgeYOffsetVal');
 bindSlider('badgeScale', 'badgeScaleVal', 2);
 
+// ── Anchor Grid ───────────────────────────────────────────────────────
+{
+  const grid = document.getElementById('anchorGrid');
+  const order = ['tl','t','tr','l','c','r','bl','b','br'];
+  const flexMap = { 0: 'flex-start', 0.5: 'center', 1: 'flex-end' };
+  for (const key of order) {
+    const { ax, ay } = ANCHOR_POINTS[key];
+    const cell = document.createElement('button');
+    cell.className = 'anchor-cell' + (key === badgeAnchor ? ' active' : '');
+    cell.dataset.anchor = key;
+    cell.title = key;
+    cell.style.setProperty('--ax', flexMap[ax]);
+    cell.style.setProperty('--ay', flexMap[ay]);
+    const dot = document.createElement('span');
+    dot.className = 'anchor-dot';
+    cell.appendChild(dot);
+    cell.addEventListener('click', () => {
+      badgeAnchor = key;
+      grid.querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.anchor === key));
+      render();
+    });
+    grid.appendChild(cell);
+  }
+}
+
 document.getElementById('resetModifierSliders').addEventListener('click', () => {
   document.getElementById('badgeXOffset').value = 0;
   document.getElementById('badgeXOffsetVal').textContent = '0.0';
@@ -1967,6 +2036,8 @@ document.getElementById('resetModifierSliders').addEventListener('click', () => 
   document.getElementById('badgeScaleVal').textContent = '1.00';
   document.getElementById('badgeGap').value = 1;
   document.getElementById('badgeGapVal').textContent = '1';
+  badgeAnchor = 'br';
+  document.getElementById('anchorGrid').querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.anchor === 'br'));
   render();
 });
 
@@ -1998,6 +2069,8 @@ function clearCustomBadge() {
   document.getElementById('badgeYOffsetVal').textContent = '0.0';
   document.getElementById('badgeScale').value = 1;
   document.getElementById('badgeScaleVal').textContent = '1.00';
+  badgeAnchor = 'br';
+  document.getElementById('anchorGrid').querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.anchor === 'br'));
   render();
 }
 

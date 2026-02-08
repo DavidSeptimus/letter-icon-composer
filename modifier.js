@@ -2,7 +2,7 @@
  * Letter Icon Composer — Modifier Engine
  * Shared Paper.js-based modifier processing for both browser UI and CLI.
  *
- * Applies a badge silhouette cutout (bottom-right corner) to SVG shapes and
+ * Applies a badge silhouette cutout (configurable anchor point) to SVG shapes and
  * renders a custom badge icon in the freed area.
  *
  * When Paper.js is available: boolean path subtraction using expanded badge
@@ -15,6 +15,20 @@
 
 import { MODIFIERS } from './core.js';
 
+// ── Anchor Points ────────────────────────────────────────────────────
+
+const ANCHOR_POINTS = {
+  tl: { ax: 0,   ay: 0   },
+  t:  { ax: 0.5, ay: 0   },
+  tr: { ax: 1,   ay: 0   },
+  l:  { ax: 0,   ay: 0.5 },
+  c:  { ax: 0.5, ay: 0.5 },
+  r:  { ax: 1,   ay: 0.5 },
+  bl: { ax: 0,   ay: 1   },
+  b:  { ax: 0.5, ay: 1   },
+  br: { ax: 1,   ay: 1   },
+};
+
 // ── Badge Placement ──────────────────────────────────────────────────
 
 /**
@@ -22,7 +36,7 @@ import { MODIFIERS } from './core.js';
  * Used by both the full engine (for silhouette import + rendering) and
  * the clipPath fallback (for rendering only).
  */
-function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale) {
+function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale, anchor = 'br') {
   let minX = 0, minY = 0, badgeW = 16, badgeH = 16;
   const vbMatch = badgeSvg.match(/viewBox=["']([^"']+)["']/);
   if (vbMatch) {
@@ -43,9 +57,16 @@ function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale) {
   const fitScale = Math.min(targetSize / badgeW, targetSize / badgeH);
   const scale = fitScale * userScale;
 
-  // Bottom-right alignment: badge corner flush with viewBox corner
-  const tx = viewBoxSize - (minX + badgeW) * scale + xOff;
-  const ty = viewBoxSize - (minY + badgeH) * scale + yOff;
+  // Anchor-based alignment: align badge's anchor point to viewBox's matching point
+  const { ax, ay } = ANCHOR_POINTS[anchor] || ANCHOR_POINTS.br;
+  const scaledW = badgeW * scale;
+  const scaledH = badgeH * scale;
+  const vbAnchorX = ax * viewBoxSize;
+  const vbAnchorY = ay * viewBoxSize;
+  const badgeAnchorX = ax * scaledW;
+  const badgeAnchorY = ay * scaledH;
+  const tx = vbAnchorX - badgeAnchorX - minX * scale + xOff;
+  const ty = vbAnchorY - badgeAnchorY - minY * scale + yOff;
 
   // Extract inner content between <svg...> and </svg>
   const innerMatch = badgeSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
@@ -65,7 +86,8 @@ function applyModifierClipPath(svgString, modifierKey, modifierColor, viewBoxSiz
 
   const placement = computeBadgePlacement(
     opts.customBadgeSvg, viewBoxSize,
-    opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
+    opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0,
+    opts.badgeAnchor || 'br');
 
   if (!placement.inner) return svgString;
 
@@ -278,7 +300,8 @@ async function createFullEngine(paper) {
 
     const placement = computeBadgePlacement(
       opts.customBadgeSvg, viewBoxSize,
-      opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
+      opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0,
+      opts.badgeAnchor || 'br');
 
     if (!placement.inner) return svgString;
 
@@ -455,4 +478,4 @@ export async function createModifierEngine(paper) {
 }
 
 // ── Exported for UI guide computation ────────────────────────────────
-export { computeBadgePlacement };
+export { computeBadgePlacement, ANCHOR_POINTS };

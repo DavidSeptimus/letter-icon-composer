@@ -230,6 +230,7 @@ const { values: args } = parseArgs({
     'badge-y-offset': { type: 'string', default: '0' },
     'badge-scale':    { type: 'string', default: '1' },
     'badge-gap':      { type: 'string', default: '1' },
+    'badge-anchor':   { type: 'string', default: 'br' },
     name:        { type: 'string',  short: 'n' },
     out:         { type: 'string',  short: 'o', default: '.' },
     'light-fill':   { type: 'string' },
@@ -285,6 +286,7 @@ Modifier:
   --badge-y-offset <n>     Badge vertical offset (default: 0)
   --badge-scale <n>        Badge scale factor (default: 1.0)
   --badge-gap <n>          Gap around badge silhouette cutout (default: 1)
+  --badge-anchor <pos>     Badge anchor point: tl, t, tr, l, c, r, bl, b, br (default: br)
 
 Output:
   -n, --name <name>        Base file name (default: derived from letter)
@@ -355,6 +357,13 @@ if (!SHAPES[args.shape]) {
 
 // --badge-svg implies --modifier custom
 if (args['badge-svg'] && !args.modifier) args.modifier = 'custom';
+
+// Validate badge anchor
+const VALID_ANCHORS = ['tl', 't', 'tr', 'l', 'c', 'r', 'bl', 'b', 'br'];
+if (!VALID_ANCHORS.includes(args['badge-anchor'])) {
+  console.error(`Error: Unknown badge anchor "${args['badge-anchor']}". Valid anchors: ${VALID_ANCHORS.join(', ')}`);
+  process.exit(1);
+}
 
 const modifierKey = args.modifier || 'none';
 if (!MODIFIERS[modifierKey]) {
@@ -475,6 +484,7 @@ if (args['badge-svg']) {
     badgeYOffset: parseFloat(args['badge-y-offset']),
     badgeScale: parseFloat(args['badge-scale']),
     badgeGap: parseFloat(args['badge-gap']),
+    badgeAnchor: args['badge-anchor'],
   };
 }
 
