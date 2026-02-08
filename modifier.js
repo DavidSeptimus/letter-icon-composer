@@ -6,8 +6,9 @@
  * renders a custom badge icon in the freed area.
  *
  * When Paper.js is available: boolean path subtraction using expanded badge
- * silhouette + stroke rings for circle/rect. Compound fill-only paths also
- * use boolean subtraction. Stroked paths and fill-none use clipPath.
+ * silhouette. Strokes are expanded into filled outlines via PaperOffset
+ * (equivalent to Affinity Designer's "Expand Stroke") before subtraction.
+ * ClipPath only as error fallback.
  *
  * When Paper.js is unavailable: pure clipPath fallback (no dependencies).
  */
@@ -104,6 +105,14 @@ async function createFullEngine(paper) {
     XMLSerializer_ = dom.window.XMLSerializer;
   }
 
+  // PaperOffset for stroke expansion and path offsetting
+  let PaperOffset;
+  if (typeof globalThis.PaperOffset !== 'undefined') {
+    PaperOffset = globalThis.PaperOffset;
+  } else {
+    PaperOffset = (await import('paperjs-offset')).PaperOffset;
+  }
+
   const paperScope = new paper.PaperScope();
   paperScope.setup(new paper.Size(1, 1));
 
@@ -167,92 +176,6 @@ async function createFullEngine(paper) {
   }
 
   /**
-   * Expand a path outward by `gap` using Minkowski-sum approximation.
-   * Places circles along the path boundary and unites them — this naturally
-   * handles sharp corners (rounding them) and never creates self-intersections.
-   */
-  function expandPath(path, gap) {
-    if (gap <= 0) return path.clone();
-
-    // For compound paths, flatten to a single unified outline first
-    let sourcePath = path;
-    if (path.className === 'CompoundPath') {
-      let unified = path.children[0].clone();
-      for (let i = 1; i < path.children.length; i++) {
-        const next = unified.unite(path.children[i]);
-        unified.remove();
-        unified = next;
-      }
-      sourcePath = unified;
-    }
-
-    // If it's still compound after union, process each child
-    if (sourcePath.className === 'CompoundPath') {
-      const children = sourcePath.children.map(child => expandSinglePath(child, gap));
-      let result = children[0];
-      for (let i = 1; i < children.length; i++) {
-        const next = result.unite(children[i]);
-        result.remove();
-        children[i].remove();
-        result = next;
-      }
-      if (sourcePath !== path) sourcePath.remove();
-      return result;
-    }
-
-    const result = expandSinglePath(sourcePath, gap);
-    if (sourcePath !== path) sourcePath.remove();
-    return result;
-  }
-
-  /** Tree-reduce: unite shapes pairwise for O(n log n) boolean ops */
-  function treeUnite(shapes) {
-    while (shapes.length > 1) {
-      const next = [];
-      for (let i = 0; i < shapes.length; i += 2) {
-        if (i + 1 < shapes.length) {
-          const u = shapes[i].unite(shapes[i + 1]);
-          shapes[i].remove();
-          shapes[i + 1].remove();
-          next.push(u);
-        } else {
-          next.push(shapes[i]);
-        }
-      }
-      shapes = next;
-    }
-    return shapes[0];
-  }
-
-  /**
-   * Build a Minkowski circle buffer along a path's boundary.
-   * Used by both expand (unite buffer with path) and contract (subtract buffer from path).
-   */
-  function buildCircleBuffer(path, radius) {
-    const len = path.length;
-    if (len <= 0) return null;
-    const step = Math.max(0.2, Math.min(0.6, radius * 0.6));
-    const circles = [];
-    for (let d = 0; d < len; d += step) {
-      const pt = path.getPointAt(d);
-      if (pt) circles.push(new paper.Path.Circle(pt, radius));
-    }
-    if (circles.length === 0) return null;
-    return treeUnite(circles);
-  }
-
-  function expandSinglePath(path, gap) {
-    const len = path.length;
-    if (len <= 0) return path.clone();
-    const buffer = buildCircleBuffer(path, gap);
-    if (!buffer) return path.clone();
-    const result = path.unite(buffer);
-    buffer.remove();
-    result.simplify(0.05);
-    return result;
-  }
-
-  /**
    * Import badge SVG shapes, position them, unite, and expand by gap.
    * Returns a single Paper.js Path to use as the cutout (replaces old rectangular notch).
    */
@@ -305,43 +228,18 @@ async function createFullEngine(paper) {
     matrix.scale(scale, new paper.Point(0, 0));
     united.transform(matrix);
 
-    // Expand by gap
-    const expanded = expandPath(united, gap);
-    if (expanded !== united) united.remove();
+    // Expand by gap using PaperOffset
+    if (gap > 0) {
+      const expanded = PaperOffset.offset(united, gap, { join: 'round', insert: false });
+      united.remove();
+      return expanded;
+    }
 
-    return expanded;
+    return united;
   }
 
   const STYLE_ATTRS = ['fill', 'stroke', 'stroke-width', 'fill-rule', 'clip-rule',
     'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'opacity'];
-
-  function createStrokeParts(el, sw, parentTransform) {
-    const tag = el.tagName.toLowerCase();
-    let outer, inner;
-    if (tag === 'circle') {
-      const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy'), r = +el.getAttribute('r');
-      outer = new paper.Path.Circle(new paper.Point(cx, cy), r + sw / 2);
-      inner = new paper.Path.Circle(new paper.Point(cx, cy), Math.max(0, r - sw / 2));
-    } else if (tag === 'rect') {
-      const x = +el.getAttribute('x'), y = +el.getAttribute('y');
-      const w = +el.getAttribute('width'), h = +el.getAttribute('height');
-      const rx = +(el.getAttribute('rx') || 0);
-      const outerRx = rx + sw / 2, innerRx = Math.max(0, rx - sw / 2);
-      outer = new paper.Path.Rectangle(
-        new paper.Rectangle(x - sw / 2, y - sw / 2, w + sw, h + sw), new paper.Size(outerRx, outerRx));
-      inner = new paper.Path.Rectangle(
-        new paper.Rectangle(x + sw / 2, y + sw / 2, Math.max(0, w - sw), Math.max(0, h - sw)),
-        new paper.Size(innerRx, innerRx));
-    } else {
-      return null;
-    }
-    const t = el.getAttribute('transform');
-    if (t) { applyPaperTransform(outer, t); applyPaperTransform(inner, t); }
-    if (parentTransform) { applyPaperTransform(outer, parentTransform); applyPaperTransform(inner, parentTransform); }
-    const ring = outer.subtract(inner);
-    outer.remove();
-    return { inner, ring };
-  }
 
   function applyModifier(svgString, modifierKey, modifierColor, viewBoxSize, opts) {
     if (!modifierKey || modifierKey === 'none') return svgString;
@@ -409,26 +307,6 @@ async function createFullEngine(paper) {
       const strokeColor = el.getAttribute('stroke');
       const strokeWidth = parseFloat(el.getAttribute('stroke-width')) || 0;
       const hasStroke = strokeColor && strokeColor !== 'none' && strokeWidth > 0;
-      const isCircleOrRect = tag === 'circle' || tag === 'rect';
-
-      // Stroked paths and fill-none elements use clipPath — stroke-to-fill
-      // decomposition via Minkowski is too imprecise for exact shape geometry.
-      // Circle/rect strokes use analytical decomposition in the boolean path below.
-      if (isFillNone || (tag === 'path' && hasStroke)) {
-        ensureClipDef();
-        el.setAttribute('clip-path', 'url(#nc)');
-        const parent = el.parentNode;
-        if (parent.tagName?.toLowerCase() === 'g') {
-          const gt = parent.getAttribute('transform');
-          if (gt) {
-            const existing = el.getAttribute('transform');
-            el.setAttribute('transform', existing ? `${gt} ${existing}` : gt);
-          }
-          parent.parentNode.insertBefore(el, parent);
-          if (parent.children.length === 0) parent.remove();
-        }
-        return;
-      }
 
       const pp = svgElToPaperPath(el);
       if (!pp) return;
@@ -438,45 +316,92 @@ async function createFullEngine(paper) {
       const insertionPoint = parent.tagName?.toLowerCase() === 'g' ? parent : null;
 
       try {
+        let fillEl = null;
         let strokeEl = null;
-        let fillShape = pp;
-        if (hasStroke && isCircleOrRect) {
-          const parts = createStrokeParts(el, strokeWidth, parentTransform);
-          if (parts) {
-            fillShape = parts.inner;
-            const ringResult = parts.ring.subtract(notch);
+
+        if (hasStroke) {
+          // Expand stroke into a filled outline using PaperOffset.offsetStroke,
+          // then subtract the notch from it. Works for all path types.
+          const joinStyle = el.getAttribute('stroke-linejoin') === 'round' ? 'round' : 'miter';
+          const capStyle = el.getAttribute('stroke-linecap') === 'round' ? 'round' : 'butt';
+          const strokeOutline = PaperOffset.offsetStroke(pp, strokeWidth / 2, {
+            join: joinStyle, cap: capStyle, insert: false
+          });
+
+          if (strokeOutline) {
+            // For closed paths with fill, we need the inner boundary for the fill.
+            // The fill area is the original path contracted by stroke-width/2,
+            // or equivalently, the original path if stroke is centered.
+            // SVG strokes are centered on the path, so the fill covers the path interior.
+            if (!isFillNone) {
+              // Subtract the stroke outline from the original path to isolate the fill interior,
+              // or just use the original path geometry directly (SVG fill = path interior).
+              const fillResult = pp.subtract(notch);
+              fillEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+              fillEl.setAttribute('d', fillResult.pathData);
+              for (const a of STYLE_ATTRS) {
+                if (a === 'stroke' || a === 'stroke-width' || a.startsWith('stroke-')) continue;
+                const v = el.getAttribute(a);
+                if (v) fillEl.setAttribute(a, v);
+              }
+              if (fillResult.className === 'CompoundPath')
+                fillEl.setAttribute('fill-rule', 'evenodd');
+              fillResult.remove();
+            }
+
+            // Subtract notch from the full stroke outline (the complete ring).
+            // SVG strokes extend sw/2 both inward and outward from the path;
+            // the inner half overlaps the fill but renders on top in SVG.
+            const ringResult = strokeOutline.subtract(notch);
             strokeEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
             strokeEl.setAttribute('d', ringResult.pathData);
             strokeEl.setAttribute('fill', strokeColor);
             if (ringResult.className === 'CompoundPath')
               strokeEl.setAttribute('fill-rule', 'evenodd');
             ringResult.remove();
-            parts.ring.remove();
+            strokeOutline.remove();
           }
+        } else if (!isFillNone) {
+          // Fill only, no stroke — subtract notch directly
+          const fillResult = pp.subtract(notch);
+          fillEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+          fillEl.setAttribute('d', fillResult.pathData);
+          for (const a of STYLE_ATTRS) {
+            if (a === 'stroke' || a === 'stroke-width' || a.startsWith('stroke-')) continue;
+            const v = el.getAttribute(a);
+            if (v) fillEl.setAttribute(a, v);
+          }
+          if (fillResult.className === 'CompoundPath')
+            fillEl.setAttribute('fill-rule', 'evenodd');
+          fillResult.remove();
         }
 
-        const fillResult = fillShape.subtract(notch);
-        const fillEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-        fillEl.setAttribute('d', fillResult.pathData);
-        for (const a of STYLE_ATTRS) {
-          if (a === 'stroke' || a === 'stroke-width' || a.startsWith('stroke-')) continue;
-          const v = el.getAttribute(a);
-          if (v) fillEl.setAttribute(a, v);
-        }
-        if (fillResult.className === 'CompoundPath')
-          fillEl.setAttribute('fill-rule', 'evenodd');
-        fillResult.remove();
-        if (fillShape !== pp) fillShape.remove();
-
+        // Replace original element with new fill/stroke paths.
+        // Fill is inserted first (behind), stroke second (on top) to
+        // match SVG's paint order: fill, then stroke over it.
         if (insertionPoint) {
+          if (fillEl) insertionPoint.parentNode.insertBefore(fillEl, insertionPoint);
           if (strokeEl) insertionPoint.parentNode.insertBefore(strokeEl, insertionPoint);
-          insertionPoint.parentNode.insertBefore(fillEl, insertionPoint);
           el.remove();
         } else {
+          if (fillEl) parent.insertBefore(fillEl, el);
           if (strokeEl) parent.insertBefore(strokeEl, el);
-          parent.replaceChild(fillEl, el);
+          el.remove();
         }
-      } catch (e) { /* subtraction failed — leave element unchanged */ }
+      } catch (e) {
+        // Boolean subtraction failed — fall back to clipPath
+        ensureClipDef();
+        el.setAttribute('clip-path', 'url(#nc)');
+        if (insertionPoint) {
+          const gt = insertionPoint.getAttribute('transform');
+          if (gt) {
+            const existing = el.getAttribute('transform');
+            el.setAttribute('transform', existing ? `${gt} ${existing}` : gt);
+          }
+          insertionPoint.parentNode.insertBefore(el, insertionPoint);
+          if (insertionPoint.children.length === 0) insertionPoint.remove();
+        }
+      }
       pp.remove();
     }
 
