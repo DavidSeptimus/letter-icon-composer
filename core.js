@@ -4,6 +4,82 @@
  * Used by both the browser UI (index.html) and the Node.js CLI (cli.js).
  */
 
+import { create as fontkitCreate } from 'fontkit';
+
+// ── Font Parsing ─────────────────────────────────────────────────────
+/**
+ * Parses a font from an ArrayBuffer or Buffer using fontkit.
+ * @param {ArrayBuffer|Buffer|Uint8Array} buffer - Font data
+ * @returns {object} A fontkit Font object
+ */
+export function parseFont(buffer) {
+  const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  return fontkitCreate(uint8);
+}
+
+// ── Text Path Helper (mimics opentype.js getPath) ────────────────────
+/**
+ * Lays out text using fontkit and returns an object compatible with the
+ * old opentype.js `font.getPath()` return value.
+ *
+ * @param {object} font - A fontkit Font object
+ * @param {string} text - The text to render
+ * @param {number} x - X position of the text origin
+ * @param {number} y - Y baseline position (SVG y-down coordinate)
+ * @param {number} fontSize - Font size in SVG units
+ * @returns {{ getBoundingBox(): {x1,y1,x2,y2}, toPathData(dp?: number): string }}
+ */
+export function getTextPath(font, text, x, y, fontSize) {
+  const run = font.layout(text);
+  const s = fontSize / font.unitsPerEm;
+
+  const svgParts = [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let curX = x;
+
+  for (let i = 0; i < run.glyphs.length; i++) {
+    const glyph = run.glyphs[i];
+    const pos = run.positions[i];
+    const gx = curX + pos.xOffset * s;
+    const gy = y - pos.yOffset * s;
+
+    const p = glyph.path.scale(s, -s).translate(gx, gy);
+    const svg = p.toSVG();
+    if (svg) svgParts.push(svg);
+
+    const bb = p.bbox;
+    if (bb.minX < bb.maxX) {
+      minX = Math.min(minX, bb.minX);
+      minY = Math.min(minY, bb.minY);
+      maxX = Math.max(maxX, bb.maxX);
+      maxY = Math.max(maxY, bb.maxY);
+    }
+    curX += pos.xAdvance * s;
+  }
+
+  // If no visible glyphs, return zero-size bounding box
+  if (minX === Infinity) {
+    minX = x; minY = y; maxX = x; maxY = y;
+  }
+
+  const combined = svgParts.join('');
+
+  return {
+    getBoundingBox() {
+      return { x1: minX, y1: minY, x2: maxX, y2: maxY };
+    },
+    toPathData(decimalPlaces) {
+      if (decimalPlaces == null) return combined;
+      // Round numbers in the path data to the given precision
+      const factor = Math.pow(10, decimalPlaces);
+      return combined.replace(/-?\d+(\.\d+)?/g, m => {
+        const n = parseFloat(m);
+        return String(Math.round(n * factor) / factor);
+      });
+    },
+  };
+}
+
 // ── Color Presets (extracted from JetBrains expUI icons) ─────────────
 export const PRESETS = [
   // JetBrains expUI official colors
@@ -174,13 +250,28 @@ export function toFontsourceSlug(name) {
   return name.trim().toLowerCase().replace(/\s+/g, '-');
 }
 
-export function getGoogleFontUrl(name, weight, bold, italic) {
+export async function getGoogleFontSubsets(name) {
+  const slug = toFontsourceSlug(name);
+  try {
+    const resp = await fetch(`https://api.fontsource.org/v1/fonts/${slug}`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return { subsets: data.subsets || [], weights: data.weights || [], styles: data.styles || [] };
+  } catch {
+    return null;
+  }
+}
+
+export function getGoogleFontUrl(name, weight, bold, italic, subset) {
   const slug = toFontsourceSlug(name);
   const effectiveWeight = bold ? '700' : weight;
   const fontStyle = italic ? 'italic' : 'normal';
-  const subsets = ['latin', 'latin-ext', 'all'];
-  return subsets.map(subset =>
-    `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/${subset}-${effectiveWeight}-${fontStyle}.woff`
+  if (subset) {
+    return [`https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/${subset}-${effectiveWeight}-${fontStyle}.woff`];
+  }
+  const subsets = ['latin', 'latin-ext', 'symbols', 'all'];
+  return subsets.map(s =>
+    `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/${s}-${effectiveWeight}-${fontStyle}.woff`
   );
 }
 
@@ -191,14 +282,14 @@ export function getGoogleFontUrl(name, weight, bold, italic) {
  * provided the *actual* glyph height is used for calibration, so
  * lowercase characters are scaled up to the same visual height as
  * uppercase ones.
- * @param {object} font - An opentype.js Font object
+ * @param {object} font - A fontkit Font object
  * @param {string} [letter='E'] - The letter(s) to calibrate against
  * @param {number} [targetHeight=7.0] - Desired glyph height in SVG units
  * @returns {number} The calibrated font size
  */
 export function calibrateFontSize(font, letter = 'E', targetHeight = 7.0) {
   // Always calibrate against cap height ('E') for consistent stroke weight
-  const testPath = font.getPath('E', 0, 0, 100);
+  const testPath = getTextPath(font, 'E', 0, 0, 100);
   const bb = testPath.getBoundingBox();
   const heightAt100 = bb.y2 - bb.y1;
   if (heightAt100 <= 0) return 7.0;
@@ -301,7 +392,7 @@ function contentFitScale(textW, textH, shapeName, strokeWidth, xOffset, yOffset,
  * For multi-character text, reduces the calibrated font size so the rendered
  * text fits within the shape interior.  Single-character text is returned
  * unchanged (the cap-height calibration already handles it).
- * @param {object} font - An opentype.js Font object
+ * @param {object} font - A fontkit Font object
  * @param {string} letter - The letter(s) to render
  * @param {number} calibratedSize - Font size from calibrateFontSize()
  * @param {string} shapeName - Shape key
@@ -314,7 +405,7 @@ function contentFitScale(textW, textH, shapeName, strokeWidth, xOffset, yOffset,
 export function boundFontSizeToShape(font, letter, calibratedSize, shapeName, strokeWidth, xOffset, yOffset, shapeScale) {
   if (!font || !letter || letter.length <= 1) return calibratedSize;
 
-  const path = font.getPath(letter, 0, 0, calibratedSize);
+  const path = getTextPath(font, letter, 0, 0, calibratedSize);
   const bb = path.getBoundingBox();
   const w = bb.x2 - bb.x1;
   const h = bb.y2 - bb.y1;
@@ -327,7 +418,7 @@ export function boundFontSizeToShape(font, letter, calibratedSize, shapeName, st
 // ── Letter Path Generation ───────────────────────────────────────────
 /**
  * Generates an SVG <path> element for a letter centered in the viewBox.
- * @param {object} font - An opentype.js Font object
+ * @param {object} font - A fontkit Font object
  * @param {string} letter - The letter(s) to render
  * @param {string} fill - Fill color for the letter path
  * @param {number} fontSize - Font size in SVG units
@@ -340,7 +431,14 @@ export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff 
   if (!font || !letter) return { path: '', error: null };
 
   try {
-    const path = font.getPath(letter, 0, 0, fontSize);
+    // Check for missing glyphs using fontkit's cmap lookup
+    const missing = [...letter].filter(ch => !font.hasGlyphForCodePoint(ch.codePointAt(0)));
+    if (missing.length > 0) {
+      const chars = missing.map(c => `"${c}" (U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')})`).join(', ');
+      return { path: '', error: `The current font has no glyph for ${chars}.` };
+    }
+
+    const path = getTextPath(font, letter, 0, 0, fontSize);
     const bb = path.getBoundingBox();
     const w = bb.x2 - bb.x1;
     const h = bb.y2 - bb.y1;
@@ -354,7 +452,7 @@ export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff 
     const tx = cx - w / 2 - bb.x1;
     const ty = cy - h / 2 - bb.y1;
 
-    const centered = font.getPath(letter, tx, ty, fontSize);
+    const centered = getTextPath(font, letter, tx, ty, fontSize);
     const d = centered.toPathData(2);
     return { path: `<path d="${d}" fill="${fill}"/>`, error: null };
   } catch (e) {
@@ -370,7 +468,7 @@ export function generateLetterPath(font, letter, fill, fontSize, xOff = 0, yOff 
  * All shapes are sized to leave a 1px transparent border:
  * 16x16 → 14x14 content area, 18x18 → 16x16 content area.
  * @param {object} params
- * @param {object} params.font - An opentype.js Font object
+ * @param {object} params.font - A fontkit Font object
  * @param {string} params.letter - The letter(s) to render
  * @param {string} params.shape - Shape name (see SHAPES keys)
  * @param {string} params.fill - Shape fill color

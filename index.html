@@ -6,7 +6,9 @@
 <title>Letter Icon Composer</title>
 <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: light)" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.5' fill='%23E7EFFD' stroke='%233574F0'/%3E%3Cpath fill='%233574F0' d='M7.16 4.28L7.16 11.72L6.03 11.72L6.03 4.28L7.16 4.28ZM9.33 4.40L9.33 4.40Q9.59 4.40 9.78 4.54Q9.97 4.67 9.97 5.01L9.97 5.01Q9.97 5.35 9.78 5.49Q9.59 5.63 9.33 5.63L9.33 5.63Q9.06 5.63 8.88 5.49Q8.70 5.35 8.70 5.01L8.70 5.01Q8.70 4.67 8.88 4.54Q9.06 4.40 9.33 4.40ZM8.76 6.43L9.89 6.43L9.89 11.72L8.76 11.72L8.76 6.43Z'/%3E%3C/svg%3E">
 <link rel="icon" type="image/svg+xml" media="(prefers-color-scheme: dark)" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.5' fill='%2325324D' stroke='%23548AF7'/%3E%3Cpath fill='%23548AF7' d='M7.16 4.28L7.16 11.72L6.03 11.72L6.03 4.28L7.16 4.28ZM9.33 4.40L9.33 4.40Q9.59 4.40 9.78 4.54Q9.97 4.67 9.97 5.01L9.97 5.01Q9.97 5.35 9.78 5.49Q9.59 5.63 9.33 5.63L9.33 5.63Q9.06 5.63 8.88 5.49Q8.70 5.35 8.70 5.01L8.70 5.01Q8.70 4.67 8.88 4.54Q9.06 4.40 9.33 4.40ZM8.76 6.43L9.89 6.43L9.89 11.72L8.76 11.72L8.76 6.43Z'/%3E%3C/svg%3E">
-<script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+<script type="importmap">
+{ "imports": { "fontkit": "https://esm.sh/fontkit@2.0.4" } }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/paper@0.12.18/dist/paper-full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/paperjs-offset@1.0.8/dist/paperjs-offset.min.js"></script>
 <style>
@@ -921,19 +923,22 @@
           <option value="custom">Import custom .ttf/.otf</option>
         </select>
         <div id="googleFontsRow" style="display:none; margin-top:8px;">
-          <div style="display:flex; gap:6px;">
-            <input type="text" id="googleFontName" placeholder="e.g. Roboto, Fira Sans" style="flex:1">
-            <select id="googleFontWeight" style="width:90px">
-              <option value="400">Regular</option>
-              <option value="500">Medium</option>
-              <option value="600" selected>SemiBold</option>
-              <option value="700">Bold</option>
-            </select>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <input type="text" id="googleFontName" placeholder="e.g. Roboto, Fira Sans" style="flex:1; min-width:0">
             <button class="btn" id="googleFontLoad" style="padding:6px 10px; white-space:nowrap">Load</button>
+            <button class="btn btn-secondary" id="googleFontFind" title="Find the subset &amp; weight containing the current letter's glyphs" style="padding:6px 8px; white-space:nowrap">Find</button>
+          </div>
+          <div id="googleFontOptionsRow" style="display:none; margin-top:6px;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <select id="googleFontWeight">
+                <option value="600">SemiBold (600)</option>
+              </select>
+              <select id="googleFontSubset"></select>
+            </div>
           </div>
           <div id="googleFontStatus" class="font-info" style="margin-top:4px"></div>
         </div>
-        <input type="file" id="fontFile" accept=".ttf,.otf,.woff" style="display:none">
+        <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2" style="display:none">
         <div class="font-info">
           JetBrains recommends <b>Arial</b> or <b>Open Sans</b> for icon letters.
           <a href="https://plugins.jetbrains.com/docs/intellij/icons-style.html" target="_blank">Guidelines</a>
@@ -1035,7 +1040,7 @@
   <details class="footer-how">
     <summary>How it works</summary>
     <ol>
-      <li><a href="https://opentype.js.org" target="_blank">opentype.js</a> converts font glyphs into SVG path data</li>
+      <li><a href="https://github.com/foliojs/fontkit" target="_blank">fontkit</a> parses font files and converts glyphs into SVG path data</li>
       <li>The path is composited onto a background shape</li>
       <li>If a badge SVG is provided, <a href="http://paperjs.org" target="_blank">Paper.js</a> builds the badge silhouette (expanding strokes into filled outlines via <a href="https://github.com/nicholaschiang/paperjs-offset" target="_blank">paperjs-offset</a>), offsets it by a configurable gap, and boolean-subtracts it from each background shape; the badge is then overlaid in the cleared area</li>
       <li><a href="https://svgo.dev" target="_blank">SVGO</a> optimizes the final SVG</li>
@@ -1056,9 +1061,9 @@
         <!-- Arrow 1 -->
         <line x1="77" y1="24" x2="103" y2="24" class="fc-arrow"/>
         <polygon points="103,20 111,24 103,28" class="fc-head"/>
-        <!-- opentype.js (stadium) -->
+        <!-- fontkit (stadium) -->
         <rect x="113" y="8" width="80" height="32" rx="16" ry="16" class="fc-node" fill="var(--surface2)" stroke="var(--accent)"/>
-        <text x="153" y="24" class="fc-label" fill="var(--accent)">opentype.js</text>
+        <text x="153" y="24" class="fc-label" fill="var(--accent)">fontkit</text>
         <!-- Arrow 2 -->
         <line x1="197" y1="24" x2="223" y2="24" class="fc-arrow"/>
         <polygon points="223,20 231,24 223,28" class="fc-head"/>
@@ -1110,7 +1115,7 @@
       </svg>
     </div>
   </details>
-  Powered by <a href="https://opentype.js.org" target="_blank">opentype.js</a>,
+  Powered by <a href="https://github.com/foliojs/fontkit" target="_blank">fontkit</a>,
   <a href="http://paperjs.org" target="_blank">Paper.js</a>,
   <a href="https://github.com/nicholaschiang/paperjs-offset" target="_blank">paperjs-offset</a>,
   and <a href="https://svgo.dev" target="_blank">SVGO</a>
@@ -1126,6 +1131,9 @@ import {
   SHAPES,
   getFontUrl,
   getGoogleFontUrl,
+  getGoogleFontSubsets,
+  parseFont,
+  getTextPath,
   calibrateFontSize as calibrateFontSizeCore,
   boundFontSizeToShape as boundFontSizeToShapeCore,
   generateSVG as generateSVGCore,
@@ -1154,7 +1162,6 @@ const svgoConfig = {
       params: {
         overrides: {
           inlineStyles: false,
-          removeViewBox: false,
           cleanupEnableBackground: false,
           removeHiddenElems: false,
           convertShapeToPath: false,
@@ -1216,6 +1223,8 @@ function saveFontSetting() {
   if (currentFontKey === 'google-fonts') {
     setting.name = document.getElementById('googleFontName').value;
     setting.weight = document.getElementById('googleFontWeight').value;
+    const subsetSel = document.getElementById('googleFontSubset');
+    if (subsetSel.options.length > 0) setting.subset = subsetSel.value;
   }
   localStorage.setItem('font-setting', JSON.stringify(setting));
 }
@@ -1235,21 +1244,16 @@ async function loadFont(key) {
     return;
   }
   try {
-    currentFont = await opentype.load(url);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    currentFont = parseFont(await resp.arrayBuffer());
     calibrateFontSize();
     clearError();
     saveFontSetting();
     render();
   } catch (e) {
     console.error('Failed to load font:', e);
-    const sig = e.message || '';
-    if (sig.includes('Unsupported OpenType signature')) {
-      const match = sig.match(/signature\s+(\w+)/);
-      const tag = match ? match[1] : 'unknown';
-      showError(`Font format not supported by opentype.js. Signature: <code>${tag}</code><br>This usually means the font uses COLRv1 color tables or WOFF2 compression. Try a different version or format (.otf, .ttf, .woff).`);
-    } else {
-      showError(`Failed to load font: <code>${sig}</code>`);
-    }
+    showError(`Failed to load font: <code>${e.message || e}</code>`);
   }
 }
 
@@ -1274,7 +1278,7 @@ async function loadSystemFont(family) {
       if (match) {
         const blob = await match.blob();
         const buf = await blob.arrayBuffer();
-        currentFont = opentype.parse(buf);
+        currentFont = parseFont(buf);
         calibrateFontSize();
         clearError();
         saveFontSetting();
@@ -1482,7 +1486,7 @@ function computeGuideBounds() {
 
     if (letter) {
       try {
-        const path = currentFont.getPath(letter, 0, 0, fontSize);
+        const path = getTextPath(currentFont, letter, 0, 0, fontSize);
         const bb = path.getBoundingBox();
         const pw = bb.x2 - bb.x1;
         const ph = bb.y2 - bb.y1;
@@ -1778,11 +1782,13 @@ function bindSlider(id, valId, decimals = 1) {
 }
 
 // ── Google Fonts ──────────────────────────────────────────────────────
-async function loadGoogleFont() {
+async function loadGoogleFont(requestedSubset) {
   const name = document.getElementById('googleFontName').value;
   const weight = document.getElementById('googleFontWeight').value;
   const status = document.getElementById('googleFontStatus');
   const btn = document.getElementById('googleFontLoad');
+  const subsetSel = document.getElementById('googleFontSubset');
+  const optionsRow = document.getElementById('googleFontOptionsRow');
 
   if (!name.trim()) { status.textContent = 'Enter a font name.'; return; }
   currentFontKey = 'google-fonts';
@@ -1790,9 +1796,57 @@ async function loadGoogleFont() {
   const effectiveWeight = styles.bold ? '700' : weight;
   const fontStyle = styles.italic ? 'italic' : 'normal';
   btn.textContent = '...';
-  status.textContent = `Loading ${name} (${effectiveWeight} ${fontStyle})...`;
 
-  const urls = getGoogleFontUrl(name, weight, styles.bold, styles.italic);
+  // If no specific subset requested, discover available subsets & weights
+  const isSubsetSwitch = typeof requestedSubset === 'string';
+  if (!isSubsetSwitch) {
+    status.textContent = `Resolving ${name}...`;
+    const meta = await getGoogleFontSubsets(name);
+    if (meta && meta.subsets.length > 0) {
+      // Populate weight dropdown
+      const WEIGHT_NAMES = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
+      const weightSel = document.getElementById('googleFontWeight');
+      const prevWeight = weightSel.value;
+      weightSel.innerHTML = '';
+      for (const w of meta.weights) {
+        const opt = document.createElement('option');
+        opt.value = String(w);
+        const label = WEIGHT_NAMES[w];
+        opt.textContent = label ? `${label} (${w})` : String(w);
+        weightSel.appendChild(opt);
+      }
+      // Restore previous or saved weight, fallback to 600 → 400 → first
+      weightSel.value = prevWeight;
+      if (!weightSel.value) weightSel.value = '600';
+      if (!weightSel.value) weightSel.value = '400';
+      if (!weightSel.value) weightSel.value = String(meta.weights[0]);
+
+      // Populate subset dropdown
+      subsetSel.innerHTML = '';
+      for (const s of meta.subsets) {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s === 'latin' ? `${s} (default)` : s;
+        subsetSel.appendChild(opt);
+      }
+      // Show options row if there are choices to make
+      optionsRow.style.display = (meta.weights.length > 1 || meta.subsets.length > 1) ? 'block' : 'none';
+      // Hide subset if only one
+      subsetSel.style.display = meta.subsets.length > 1 ? '' : 'none';
+      // Select the requested or saved subset, fallback to latin or first
+      const saved = requestedSubset || (meta.subsets.includes('latin') ? 'latin' : meta.subsets[0]);
+      subsetSel.value = saved;
+      if (!subsetSel.value) subsetSel.value = meta.subsets[0];
+    } else {
+      optionsRow.style.display = 'none';
+      subsetSel.innerHTML = '';
+    }
+  }
+
+  const subset = subsetSel.value || undefined;
+  status.textContent = `Loading ${name} (${effectiveWeight} ${fontStyle}${subset ? ` — ${subset}` : ''})...`;
+
+  const urls = getGoogleFontUrl(name, weight, styles.bold, styles.italic, subset);
   let loaded = false;
   let lastError = null;
 
@@ -1801,9 +1855,9 @@ async function loadGoogleFont() {
       const resp = await fetch(url);
       if (!resp.ok) continue;
       const buf = await resp.arrayBuffer();
-      currentFont = opentype.parse(buf);
+      currentFont = parseFont(buf);
       calibrateFontSize();
-      status.innerHTML = `Loaded <b>${name}</b> (${effectiveWeight} ${fontStyle}) from fontsource`;
+      status.innerHTML = `Loaded <b>${name}</b> (${effectiveWeight} ${fontStyle})${subset ? ` — subset: <b>${subset}</b>` : ''}`;
       loaded = true;
       clearError();
       saveFontSetting();
@@ -1824,16 +1878,111 @@ async function loadGoogleFont() {
   btn.textContent = 'Load';
 }
 
-document.getElementById('googleFontLoad').addEventListener('click', loadGoogleFont);
+document.getElementById('googleFontLoad').addEventListener('click', () => loadGoogleFont());
 document.getElementById('googleFontName').addEventListener('keydown', e => {
   if (e.key === 'Enter') loadGoogleFont();
 });
+document.getElementById('googleFontSubset').addEventListener('change', () => {
+  loadGoogleFont(document.getElementById('googleFontSubset').value);
+});
+document.getElementById('googleFontWeight').addEventListener('change', () => {
+  if (currentFontKey === 'google-fonts') loadGoogleFont();
+});
+
+// ── Google Font "Find" — resolve subset+weight for current letter ─────
+async function findGoogleFontGlyphs() {
+  const name = document.getElementById('googleFontName').value;
+  const letter = document.getElementById('letter').value;
+  const status = document.getElementById('googleFontStatus');
+  const findBtn = document.getElementById('googleFontFind');
+
+  if (!name.trim()) { status.textContent = 'Enter a font name.'; return; }
+  if (!letter) { status.textContent = 'Enter a letter first.'; return; }
+
+  const codePoints = [...letter].map(ch => ch.codePointAt(0));
+  findBtn.textContent = '...';
+  status.textContent = `Resolving ${name}...`;
+
+  const meta = await getGoogleFontSubsets(name);
+  if (!meta || meta.subsets.length === 0) {
+    status.innerHTML = `Could not find "${name}".`;
+    findBtn.textContent = 'Find';
+    return;
+  }
+
+  const fontStyle = styles.italic ? 'italic' : 'normal';
+  const slug = name.trim().toLowerCase().replace(/\s+/g, '-');
+
+  // Populate weight & subset dropdowns from metadata
+  const WEIGHT_NAMES = {100:'Thin',200:'ExtraLight',300:'Light',400:'Regular',500:'Medium',600:'SemiBold',700:'Bold',800:'ExtraBold',900:'Black'};
+  const weightSel = document.getElementById('googleFontWeight');
+  const subsetSel = document.getElementById('googleFontSubset');
+  const optionsRow = document.getElementById('googleFontOptionsRow');
+  const prevWeight = weightSel.value;
+  weightSel.innerHTML = '';
+  for (const w of meta.weights) {
+    const opt = document.createElement('option');
+    opt.value = String(w);
+    const wl = WEIGHT_NAMES[w];
+    opt.textContent = wl ? `${wl} (${w})` : String(w);
+    weightSel.appendChild(opt);
+  }
+  weightSel.value = prevWeight;
+  if (!weightSel.value) weightSel.value = '600';
+  if (!weightSel.value) weightSel.value = '400';
+  if (!weightSel.value) weightSel.value = String(meta.weights[0]);
+  subsetSel.innerHTML = '';
+  for (const s of meta.subsets) {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s === 'latin' ? `${s} (default)` : s;
+    subsetSel.appendChild(opt);
+  }
+  optionsRow.style.display = (meta.weights.length > 1 || meta.subsets.length > 1) ? 'block' : 'none';
+  subsetSel.style.display = meta.subsets.length > 1 ? '' : 'none';
+
+  // Order weights: prefer current selection, then 400, then the rest
+  const currentWeight = prevWeight || '600';
+  const orderedWeights = [currentWeight, '400', ...meta.weights.map(String)]
+    .filter((v, i, a) => a.indexOf(v) === i && meta.weights.includes(Number(v)));
+  let tried = 0;
+  const total = meta.subsets.length * orderedWeights.length;
+
+  for (const w of orderedWeights) {
+    for (const subset of meta.subsets) {
+      tried++;
+      status.textContent = `Searching (${tried}/${total}): ${subset} @ ${w}...`;
+      const url = `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/${subset}-${w}-${fontStyle}.woff`;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const font = parseFont(await resp.arrayBuffer());
+        if (codePoints.every(cp => font.hasGlyphForCodePoint(cp))) {
+          // Found — update dropdowns and load
+          weightSel.value = w;
+          subsetSel.value = subset;
+          findBtn.textContent = 'Find';
+          await loadGoogleFont(subset);
+          return;
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  status.innerHTML = `No subset of <b>${name}</b> contains glyphs for "${letter}".`;
+  findBtn.textContent = 'Find';
+}
+
+document.getElementById('googleFontFind').addEventListener('click', findGoogleFontGlyphs);
 
 // ── Font Select ───────────────────────────────────────────────────────
 const googleFontsRow = document.getElementById('googleFontsRow');
 
 document.getElementById('fontSelect').addEventListener('change', e => {
   googleFontsRow.style.display = e.target.value === 'google-fonts' ? 'block' : 'none';
+  if (e.target.value !== 'google-fonts') {
+    document.getElementById('googleFontOptionsRow').style.display = 'none';
+  }
   if (e.target.value === 'custom') {
     document.getElementById('fontFile').click();
   } else if (e.target.value === 'google-fonts') {
@@ -1849,7 +1998,7 @@ document.getElementById('fontFile').addEventListener('change', e => {
   const reader = new FileReader();
   reader.onload = evt => {
     try {
-      currentFont = opentype.parse(evt.target.result);
+      currentFont = parseFont(evt.target.result);
       calibrateFontSize();
       render();
     } catch (err) {
@@ -2286,7 +2435,16 @@ if (savedFont) {
     document.getElementById('googleFontsRow').style.display = 'block';
     document.getElementById('googleFontName').value = savedFont.name || '';
     document.getElementById('googleFontWeight').value = savedFont.weight || '600';
-    loadGoogleFont();
+    // Pass saved subset — loadGoogleFont will discover subsets and select it
+    loadGoogleFont().then(() => {
+      if (savedFont.subset) {
+        const subsetSel = document.getElementById('googleFontSubset');
+        if ([...subsetSel.options].some(o => o.value === savedFont.subset)) {
+          subsetSel.value = savedFont.subset;
+          loadGoogleFont(savedFont.subset);
+        }
+      }
+    });
   } else {
     loadFont(savedFont.key);
   }

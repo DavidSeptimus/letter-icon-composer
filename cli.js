@@ -18,16 +18,6 @@ import { resolve, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
-// opentype.js — loaded dynamically so we can give a helpful error
-let opentype;
-try {
-  opentype = await import('opentype.js');
-} catch {
-  console.error('Missing dependency: opentype.js');
-  console.error('Run: npm install    (from the icon-generator directory)');
-  process.exit(1);
-}
-
 import { optimize } from 'svgo';
 
 import {
@@ -37,6 +27,8 @@ import {
   findPreset,
   getFontUrl,
   getGoogleFontUrl,
+  parseFont,
+  getTextPath,
   calibrateFontSize,
   generateLetterPath,
   generateSVG,
@@ -53,6 +45,7 @@ if (process.argv[2] === 'text-to-svg') {
       'font-file':   { type: 'string' },
       'google-font': { type: 'string' },
       'font-weight': { type: 'string', default: '600' },
+      'font-subset': { type: 'string' },
       bold:          { type: 'boolean', default: false },
       italic:        { type: 'boolean', default: false },
       'font-size':   { type: 'string' },
@@ -84,6 +77,7 @@ Font:
   --font-file <path>       Load a local .ttf/.otf/.woff file
   --google-font <name>     Load a Google Font by name (e.g. "Roboto")
   --font-weight <weight>   Google font weight: 400, 500, 600, 700 (default: 600)
+  --font-subset <name>     Fontsource subset: latin, symbols, cyrillic, etc. (default: latin)
   --bold                   Use bold variant
   --italic                 Use italic variant
 
@@ -116,15 +110,15 @@ Examples:
   async function loadTextFont() {
     if (ta['font-file']) {
       const buf = await readFile(resolve(ta['font-file']));
-      return opentype.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+      return parseFont(buf);
     }
     if (ta['google-font']) {
-      const urls = getGoogleFontUrl(ta['google-font'], ta['font-weight'], ta.bold, ta.italic);
+      const urls = getGoogleFontUrl(ta['google-font'], ta['font-weight'], ta.bold, ta.italic, ta['font-subset']);
       for (const url of urls) {
         try {
           const resp = await fetch(url);
           if (!resp.ok) continue;
-          return opentype.parse(await resp.arrayBuffer());
+          return parseFont(await resp.arrayBuffer());
         } catch { /* try next subset */ }
       }
       console.error(`Error: Could not load Google Font "${ta['google-font']}". Check spelling.`);
@@ -140,7 +134,7 @@ Examples:
       console.error(`Error: Failed to download font from ${url}`);
       process.exit(1);
     }
-    return opentype.parse(await resp.arrayBuffer());
+    return parseFont(await resp.arrayBuffer());
   }
 
   const font = await loadTextFont();
@@ -157,7 +151,7 @@ Examples:
     const targetH = vbSize - 2 * padding;
     fontSize = calibrateFontSize(font, ta.text, targetH);
     // Also bound horizontally so multi-char text fits
-    const probe = font.getPath(ta.text, 0, 0, fontSize);
+    const probe = getTextPath(font, ta.text, 0, 0, fontSize);
     const bb = probe.getBoundingBox();
     const w = bb.x2 - bb.x1;
     const h = bb.y2 - bb.y1;
@@ -171,7 +165,7 @@ Examples:
   let svg;
   if (ta.tight) {
     // Tight bounding box — viewBox wraps the glyph exactly (+ padding)
-    const path = font.getPath(ta.text, 0, 0, fontSize);
+    const path = getTextPath(font, ta.text, 0, 0, fontSize);
     const bb = path.getBoundingBox();
     const w = bb.x2 - bb.x1;
     const h = bb.y2 - bb.y1;
@@ -179,7 +173,7 @@ Examples:
     const vh = Math.round((h + 2 * padding) * 100) / 100;
     const tx = padding - bb.x1;
     const ty = padding - bb.y1;
-    const tightPath = font.getPath(ta.text, tx, ty, fontSize);
+    const tightPath = getTextPath(font, ta.text, tx, ty, fontSize);
     const d = tightPath.toPathData(2);
     svg = `<svg width="${vw}" height="${vh}" viewBox="0 0 ${vw} ${vh}" fill="none" xmlns="http://www.w3.org/2000/svg">\n  <path d="${d}" fill="${color}"/>\n</svg>`;
   } else {
@@ -193,7 +187,7 @@ Examples:
   const optimized = optimize(svg, {
     multipass: true,
     plugins: [
-      { name: 'preset-default', params: { overrides: { removeViewBox: false, convertPathData: false } } },
+      { name: 'preset-default', params: { overrides: { convertPathData: false } } },
       'sortAttrs',
     ],
   }).data;
@@ -217,6 +211,7 @@ const { values: args } = parseArgs({
     'font-file': { type: 'string' },
     'google-font': { type: 'string' },
     'font-weight': { type: 'string', default: '600' },
+    'font-subset': { type: 'string' },
     bold:        { type: 'boolean', default: false },
     italic:      { type: 'boolean', default: false },
     'font-size': { type: 'string' },
@@ -269,6 +264,7 @@ Font:
   --font-file <path>       Load a local .ttf/.otf/.woff file
   --google-font <name>     Load a Google Font by name (e.g. "Roboto")
   --font-weight <weight>   Google font weight: 400, 500, 600, 700 (default: 600)
+  --font-subset <name>     Fontsource subset: latin, symbols, cyrillic, etc. (default: latin)
   --bold                   Use bold variant
   --italic                 Use italic variant
 
@@ -394,20 +390,19 @@ const colors = {
 async function fetchFont(url) {
   const resp = await fetch(url);
   if (!resp.ok) return null;
-  const buf = await resp.arrayBuffer();
-  return opentype.parse(buf);
+  return parseFont(await resp.arrayBuffer());
 }
 
 async function loadFont() {
   // Local file takes priority
   if (args['font-file']) {
     const buf = await readFile(resolve(args['font-file']));
-    return opentype.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+    return parseFont(buf);
   }
 
   // Google Font
   if (args['google-font']) {
-    const urls = getGoogleFontUrl(args['google-font'], args['font-weight'], args.bold, args.italic);
+    const urls = getGoogleFontUrl(args['google-font'], args['font-weight'], args.bold, args.italic, args['font-subset']);
     for (const url of urls) {
       try {
         const font = await fetchFont(url);
@@ -442,7 +437,6 @@ const svgoConfig = {
       params: {
         overrides: {
           inlineStyles: false,
-          removeViewBox: false,
           cleanupEnableBackground: false,
           removeHiddenElems: false,
           convertShapeToPath: false,
