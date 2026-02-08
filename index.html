@@ -544,26 +544,54 @@
     border-color: var(--accent);
     background: rgba(53,116,240,0.08);
   }
-  .badge-preview {
+  .badge-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .badge-list:empty { display: none; }
+  .badge-list-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-    padding: 6px 8px;
+    gap: 6px;
+    padding: 5px 6px;
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 11px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
   }
-  .badge-preview svg { flex-shrink: 0; }
-  .badge-preview-name {
+  .badge-list-item:hover {
+    border-color: var(--accent);
+  }
+  .badge-list-item.selected {
+    border-color: var(--accent);
+    background: rgba(53,116,240,0.08);
+  }
+  .badge-list-item.drag-over {
+    border-top: 2px solid var(--accent);
+  }
+  .badge-list-item .drag-handle {
+    cursor: grab;
+    color: var(--text-dim);
+    font-size: 10px;
+    line-height: 1;
+    flex-shrink: 0;
+    padding: 0 2px;
+  }
+  .badge-list-item .drag-handle:active { cursor: grabbing; }
+  .badge-list-item svg { flex-shrink: 0; }
+  .badge-list-item-name {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text);
   }
-  .badge-clear-btn {
+  .badge-list-item .badge-remove-btn {
     background: none;
     border: none;
     color: var(--text-dim);
@@ -573,7 +601,7 @@
     line-height: 1;
     flex-shrink: 0;
   }
-  .badge-clear-btn:hover { color: var(--error); }
+  .badge-list-item .badge-remove-btn:hover { color: var(--error); }
 
   .anchor-grid {
     display: grid;
@@ -745,11 +773,7 @@
           Drop, paste, or <a href="#" id="badgeBrowseLink" style="color:var(--accent);text-decoration:none">browse</a> an SVG file
         </div>
         <input type="file" id="badgeFileInput" accept=".svg" style="display:none">
-        <div id="badgePreview" class="badge-preview" style="display:none">
-          <div id="badgePreviewThumb" style="width:24px;height:24px"></div>
-          <span class="badge-preview-name" id="badgePreviewName"></span>
-          <button class="badge-clear-btn" id="badgeClearBtn" title="Remove">&times;</button>
-        </div>
+        <div class="badge-list" id="badgeList"></div>
         <div id="badgeTuning" style="display:none">
           <div style="display:flex;justify-content:space-between;align-items:start;margin-top:6px">
             <div>
@@ -1112,9 +1136,9 @@ let currentFont = null;
 
 let currentShape = 'circle';
 let activeTab = 'light';
-let customBadgeSvg = null;
-let customBadgeName = '';
-let badgeAnchor = 'br';
+let badges = [];           // Array of { id, svgText, name, anchor, xOff, yOff, scale, gap }
+let nextBadgeId = 1;
+let selectedBadgeId = null;
 let svgLight = '';
 let svgDark = '';
 let styles = { bold: false, italic: false };
@@ -1470,18 +1494,15 @@ function computeGuideBounds() {
     }
   }
 
-  // ── Badge + gap bounds via computeBadgePlacement
-  if (customBadgeSvg) {
-    const bxOff = parseFloat(document.getElementById('badgeXOffset').value);
-    const byOff = parseFloat(document.getElementById('badgeYOffset').value);
-    const userScale = parseFloat(document.getElementById('badgeScale').value);
-    const gap = parseFloat(document.getElementById('badgeGap').value);
-
-    const p = computeBadgePlacement(customBadgeSvg, s, bxOff, byOff, userScale, badgeAnchor);
+  // ── Badge + gap bounds via computeBadgePlacement (selected badge only)
+  const selBadge = badges.find(b => b.id === selectedBadgeId);
+  if (selBadge) {
+    const p = computeBadgePlacement(selBadge.svgText, s, selBadge.xOff, selBadge.yOff, selBadge.scale, selBadge.anchor);
     const finalW = p.badgeW * p.scale;
     const finalH = p.badgeH * p.scale;
     const bx = p.tx + p.minX * p.scale;
     const by = p.ty + p.minY * p.scale;
+    const gap = selBadge.gap;
 
     // Badge bounds
     bounds.badge = { x: bx, y: by, w: finalW, h: finalH };
@@ -1514,7 +1535,7 @@ function drawSizeGuides() {
   }
 
   // Show/hide notch+badge toggle buttons based on badge presence
-  const hasBadge = customBadgeSvg !== null;
+  const hasBadge = badges.length > 0;
   document.getElementById('toggleGuideNotch').style.display = hasBadge ? '' : 'none';
   document.getElementById('toggleGuideBadge').style.display = hasBadge ? '' : 'none';
 
@@ -1540,14 +1561,13 @@ function render() {
   let rawLight = generateSVG(lightFill, lightStroke, lightStroke, sw);
   let rawDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
 
-  if (customBadgeSvg) {
+  if (badges.length > 0) {
     const opts = {
-      customBadgeSvg,
-      badgeXOffset: parseFloat(document.getElementById('badgeXOffset').value),
-      badgeYOffset: parseFloat(document.getElementById('badgeYOffset').value),
-      badgeScale: parseFloat(document.getElementById('badgeScale').value),
-      badgeGap: parseFloat(document.getElementById('badgeGap').value),
-      badgeAnchor,
+      badges: badges.map(b => ({
+        svgText: b.svgText,
+        xOffset: b.xOff, yOffset: b.yOff,
+        scale: b.scale, gap: b.gap, anchor: b.anchor,
+      })),
     };
     rawLight = applyModifier(rawLight, 'custom', lightStroke, lastViewBoxSize, opts);
     rawDark = applyModifier(rawDark, 'custom', darkStroke, lastViewBoxSize, opts);
@@ -1997,10 +2017,22 @@ bindSlider('fontSize', 'fontSizeVal');
 bindSlider('yOffset', 'yOffsetVal');
 bindSlider('xOffset', 'xOffsetVal');
 bindSlider('strokeWidth', 'strokeWidthVal');
-bindSlider('badgeGap', 'badgeGapVal');
-bindSlider('badgeXOffset', 'badgeXOffsetVal');
-bindSlider('badgeYOffset', 'badgeYOffsetVal');
-bindSlider('badgeScale', 'badgeScaleVal', 2);
+// Badge sliders: write values back to selected badge before render
+for (const [sliderId, valId, dec, prop] of [
+  ['badgeGap', 'badgeGapVal', 1, 'gap'],
+  ['badgeXOffset', 'badgeXOffsetVal', 1, 'xOff'],
+  ['badgeYOffset', 'badgeYOffsetVal', 1, 'yOff'],
+  ['badgeScale', 'badgeScaleVal', 2, 'scale'],
+]) {
+  const slider = document.getElementById(sliderId);
+  const val = document.getElementById(valId);
+  slider.addEventListener('input', () => {
+    val.textContent = parseFloat(slider.value).toFixed(dec);
+    const b = badges.find(b => b.id === selectedBadgeId);
+    if (b) b[prop] = parseFloat(slider.value);
+    render();
+  });
+}
 
 // ── Anchor Grid ───────────────────────────────────────────────────────
 {
@@ -2010,7 +2042,7 @@ bindSlider('badgeScale', 'badgeScaleVal', 2);
   for (const key of order) {
     const { ax, ay } = ANCHOR_POINTS[key];
     const cell = document.createElement('button');
-    cell.className = 'anchor-cell' + (key === badgeAnchor ? ' active' : '');
+    cell.className = 'anchor-cell' + (key === 'br' ? ' active' : '');
     cell.dataset.anchor = key;
     cell.title = key;
     cell.style.setProperty('--ax', flexMap[ax]);
@@ -2019,7 +2051,8 @@ bindSlider('badgeScale', 'badgeScaleVal', 2);
     dot.className = 'anchor-dot';
     cell.appendChild(dot);
     cell.addEventListener('click', () => {
-      badgeAnchor = key;
+      const b = badges.find(b => b.id === selectedBadgeId);
+      if (b) b.anchor = key;
       grid.querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.anchor === key));
       render();
     });
@@ -2028,53 +2061,141 @@ bindSlider('badgeScale', 'badgeScaleVal', 2);
 }
 
 document.getElementById('resetModifierSliders').addEventListener('click', () => {
-  document.getElementById('badgeXOffset').value = 0;
-  document.getElementById('badgeXOffsetVal').textContent = '0.0';
-  document.getElementById('badgeYOffset').value = 0;
-  document.getElementById('badgeYOffsetVal').textContent = '0.0';
-  document.getElementById('badgeScale').value = 1;
-  document.getElementById('badgeScaleVal').textContent = '1.00';
-  document.getElementById('badgeGap').value = 1;
-  document.getElementById('badgeGapVal').textContent = '1';
-  badgeAnchor = 'br';
-  document.getElementById('anchorGrid').querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.anchor === 'br'));
+  const b = badges.find(b => b.id === selectedBadgeId);
+  if (b) {
+    b.xOff = 0; b.yOff = 0; b.scale = 1; b.gap = 1; b.anchor = 'br';
+  }
+  loadTuningFromBadge(b);
   render();
 });
 
-// ── Custom Badge Import ───────────────────────────────────────────────
-function loadCustomBadge(svgText, name) {
+// ── Badge List Management ─────────────────────────────────────────────
+function addBadge(svgText, name) {
   if (!svgText || !svgText.includes('<svg')) return;
-  customBadgeSvg = svgText;
-  customBadgeName = name || 'custom.svg';
-
-  // Show preview + tuning, hide drop zone
-  const thumbEl = document.getElementById('badgePreviewThumb');
-  thumbEl.innerHTML = svgText.replace(/width=["'][^"']*["']/i, 'width="24"').replace(/height=["'][^"']*["']/i, 'height="24"');
-  document.getElementById('badgePreviewName').textContent = customBadgeName;
-  document.getElementById('badgePreview').style.display = '';
-  document.getElementById('badgeDropZone').style.display = 'none';
-  document.getElementById('badgeTuning').style.display = '';
+  const badge = {
+    id: nextBadgeId++,
+    svgText,
+    name: name || 'custom.svg',
+    anchor: 'br',
+    xOff: 0, yOff: 0,
+    scale: 1, gap: 1,
+  };
+  badges.push(badge);
+  selectBadge(badge.id);
+  renderBadgeList();
   render();
 }
 
-function clearCustomBadge() {
-  customBadgeSvg = null;
-  customBadgeName = '';
-  document.getElementById('badgePreview').style.display = 'none';
-  document.getElementById('badgeTuning').style.display = 'none';
-  document.getElementById('badgeDropZone').style.display = '';
-  document.getElementById('badgeXOffset').value = 0;
-  document.getElementById('badgeXOffsetVal').textContent = '0.0';
-  document.getElementById('badgeYOffset').value = 0;
-  document.getElementById('badgeYOffsetVal').textContent = '0.0';
-  document.getElementById('badgeScale').value = 1;
-  document.getElementById('badgeScaleVal').textContent = '1.00';
-  badgeAnchor = 'br';
-  document.getElementById('anchorGrid').querySelectorAll('.anchor-cell').forEach(c => c.classList.toggle('active', c.dataset.anchor === 'br'));
+function removeBadge(id) {
+  badges = badges.filter(b => b.id !== id);
+  if (selectedBadgeId === id) {
+    selectedBadgeId = badges.length > 0 ? badges[badges.length - 1].id : null;
+  }
+  loadTuningFromBadge(badges.find(b => b.id === selectedBadgeId));
+  renderBadgeList();
   render();
 }
 
-document.getElementById('badgeClearBtn').addEventListener('click', clearCustomBadge);
+function selectBadge(id) {
+  selectedBadgeId = id;
+  const b = badges.find(b => b.id === id);
+  loadTuningFromBadge(b);
+  // Highlight in list
+  document.querySelectorAll('.badge-list-item').forEach(el => {
+    el.classList.toggle('selected', +el.dataset.badgeId === id);
+  });
+}
+
+function loadTuningFromBadge(b) {
+  const tuning = document.getElementById('badgeTuning');
+  if (!b) {
+    tuning.style.display = 'none';
+    return;
+  }
+  tuning.style.display = '';
+  document.getElementById('badgeXOffset').value = b.xOff;
+  document.getElementById('badgeXOffsetVal').textContent = b.xOff.toFixed(1);
+  document.getElementById('badgeYOffset').value = b.yOff;
+  document.getElementById('badgeYOffsetVal').textContent = b.yOff.toFixed(1);
+  document.getElementById('badgeScale').value = b.scale;
+  document.getElementById('badgeScaleVal').textContent = b.scale.toFixed(2);
+  document.getElementById('badgeGap').value = b.gap;
+  document.getElementById('badgeGapVal').textContent = b.gap.toFixed(1);
+  // Anchor grid
+  document.getElementById('anchorGrid').querySelectorAll('.anchor-cell').forEach(c =>
+    c.classList.toggle('active', c.dataset.anchor === b.anchor));
+}
+
+function syncTuningToSelectedBadge() {
+  const b = badges.find(b => b.id === selectedBadgeId);
+  if (!b) return;
+  b.xOff = parseFloat(document.getElementById('badgeXOffset').value);
+  b.yOff = parseFloat(document.getElementById('badgeYOffset').value);
+  b.scale = parseFloat(document.getElementById('badgeScale').value);
+  b.gap = parseFloat(document.getElementById('badgeGap').value);
+}
+
+function renderBadgeList() {
+  const list = document.getElementById('badgeList');
+  list.innerHTML = '';
+  for (const badge of badges) {
+    const item = document.createElement('div');
+    item.className = 'badge-list-item' + (badge.id === selectedBadgeId ? ' selected' : '');
+    item.dataset.badgeId = badge.id;
+    item.draggable = true;
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '\u2261';
+    item.appendChild(handle);
+
+    const thumb = document.createElement('div');
+    thumb.style.cssText = 'width:20px;height:20px;flex-shrink:0';
+    thumb.innerHTML = badge.svgText.replace(/width=["'][^"']*["']/i, 'width="20"').replace(/height=["'][^"']*["']/i, 'height="20"');
+    item.appendChild(thumb);
+
+    const name = document.createElement('span');
+    name.className = 'badge-list-item-name';
+    name.textContent = badge.name;
+    item.appendChild(name);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'badge-remove-btn';
+    removeBtn.title = 'Remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.addEventListener('click', e => { e.stopPropagation(); removeBadge(badge.id); });
+    item.appendChild(removeBtn);
+
+    item.addEventListener('click', () => selectBadge(badge.id));
+
+    // Drag-to-reorder
+    item.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', String(badge.id));
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const draggedId = +e.dataTransfer.getData('text/plain');
+      if (draggedId === badge.id) return;
+      const fromIdx = badges.findIndex(b => b.id === draggedId);
+      const toIdx = badges.findIndex(b => b.id === badge.id);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = badges.splice(fromIdx, 1);
+      badges.splice(toIdx, 0, moved);
+      renderBadgeList();
+      render();
+    });
+
+    list.appendChild(item);
+  }
+}
 
 document.getElementById('badgeBrowseLink').addEventListener('click', e => {
   e.preventDefault();
@@ -2085,7 +2206,7 @@ document.getElementById('badgeFileInput').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = evt => loadCustomBadge(evt.target.result, file.name);
+  reader.onload = evt => addBadge(evt.target.result, file.name);
   reader.readAsText(file);
   e.target.value = '';
 });
@@ -2099,7 +2220,7 @@ badgeDropZone.addEventListener('drop', e => {
   const file = e.dataTransfer.files[0];
   if (!file || !file.name.endsWith('.svg')) return;
   const reader = new FileReader();
-  reader.onload = evt => loadCustomBadge(evt.target.result, file.name);
+  reader.onload = evt => addBadge(evt.target.result, file.name);
   reader.readAsText(file);
 });
 
@@ -2107,7 +2228,7 @@ badgeDropZone.addEventListener('paste', e => {
   const text = e.clipboardData.getData('text');
   if (text && text.includes('<svg')) {
     e.preventDefault();
-    loadCustomBadge(text, 'pasted.svg');
+    addBadge(text, 'pasted.svg');
   }
 });
 

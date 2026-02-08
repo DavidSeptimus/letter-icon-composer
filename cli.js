@@ -225,12 +225,12 @@ const { values: args } = parseArgs({
     'stroke-width': { type: 'string', default: '1' },
     'shape-scale':  { type: 'string' },
     modifier:    { type: 'string',  short: 'm' },
-    'badge-svg':    { type: 'string' },
-    'badge-x-offset': { type: 'string', default: '0' },
-    'badge-y-offset': { type: 'string', default: '0' },
-    'badge-scale':    { type: 'string', default: '1' },
-    'badge-gap':      { type: 'string', default: '1' },
-    'badge-anchor':   { type: 'string', default: 'br' },
+    'badge-svg':      { type: 'string', multiple: true },
+    'badge-x-offset': { type: 'string', multiple: true },
+    'badge-y-offset': { type: 'string', multiple: true },
+    'badge-scale':    { type: 'string', multiple: true },
+    'badge-gap':      { type: 'string', multiple: true },
+    'badge-anchor':   { type: 'string', multiple: true },
     name:        { type: 'string',  short: 'n' },
     out:         { type: 'string',  short: 'o', default: '.' },
     'light-fill':   { type: 'string' },
@@ -281,12 +281,12 @@ Fine Tuning:
 
 Modifier:
   -m, --modifier <name>    Badge modifier: ${Object.keys(MODIFIERS).join(', ')} (default: none)
-  --badge-svg <file>       Custom SVG badge file (implies --modifier custom)
-  --badge-x-offset <n>     Badge horizontal offset (default: 0)
-  --badge-y-offset <n>     Badge vertical offset (default: 0)
-  --badge-scale <n>        Badge scale factor (default: 1.0)
-  --badge-gap <n>          Gap around badge silhouette cutout (default: 1)
-  --badge-anchor <pos>     Badge anchor point: tl, t, tr, l, c, r, bl, b, br (default: br)
+  --badge-svg <file>       Custom SVG badge file(s) — repeatable, layered bottom to top
+  --badge-x-offset <n>     Per-badge horizontal offset (repeatable, default: 0)
+  --badge-y-offset <n>     Per-badge vertical offset (repeatable, default: 0)
+  --badge-scale <n>        Per-badge scale factor (repeatable, default: 1.0)
+  --badge-gap <n>          Per-badge gap around silhouette cutout (repeatable, default: 1)
+  --badge-anchor <pos>     Per-badge anchor: tl, t, tr, l, c, r, bl, b, br (repeatable, default: br)
 
 Output:
   -n, --name <name>        Base file name (default: derived from letter)
@@ -302,7 +302,8 @@ Examples:
   node cli.js -l N -s circle -c blue -o ./icons/
   node cli.js -l E -s hexagon -c purple --name element
   node cli.js -l R -s document -c blue --font inter --bold
-  node cli.js -l N -s circle -c blue -m plus
+  node cli.js -l N -s circle -c blue --badge-svg badge.svg
+  node cli.js -l N -s circle -c blue --badge-svg a.svg --badge-svg b.svg --badge-anchor br --badge-anchor tl
   node cli.js --list presets
   node cli.js --list shapes
   node cli.js --list modifiers
@@ -356,13 +357,17 @@ if (!SHAPES[args.shape]) {
 }
 
 // --badge-svg implies --modifier custom
-if (args['badge-svg'] && !args.modifier) args.modifier = 'custom';
+const badgeSvgFiles = args['badge-svg'] || [];
+if (badgeSvgFiles.length > 0 && !args.modifier) args.modifier = 'custom';
 
-// Validate badge anchor
+// Validate badge anchors
 const VALID_ANCHORS = ['tl', 't', 'tr', 'l', 'c', 'r', 'bl', 'b', 'br'];
-if (!VALID_ANCHORS.includes(args['badge-anchor'])) {
-  console.error(`Error: Unknown badge anchor "${args['badge-anchor']}". Valid anchors: ${VALID_ANCHORS.join(', ')}`);
-  process.exit(1);
+const badgeAnchors = args['badge-anchor'] || [];
+for (const anchor of badgeAnchors) {
+  if (!VALID_ANCHORS.includes(anchor)) {
+    console.error(`Error: Unknown badge anchor "${anchor}". Valid anchors: ${VALID_ANCHORS.join(', ')}`);
+    process.exit(1);
+  }
 }
 
 const modifierKey = args.modifier || 'none';
@@ -470,21 +475,29 @@ if (modifierKey !== 'none') {
   ({ applyModifier } = await createModifierEngine(paper));
 }
 
-// Load custom badge SVG
+// Load custom badge SVG(s)
 let badgeOpts = undefined;
-if (args['badge-svg']) {
-  const badgeSvgText = await readFile(resolve(args['badge-svg']), 'utf-8');
-  if (!badgeSvgText.includes('<svg')) {
-    console.error('Error: --badge-svg file does not contain valid SVG markup.');
-    process.exit(1);
-  }
+if (badgeSvgFiles.length > 0) {
+  const xOffsets = args['badge-x-offset'] || [];
+  const yOffsets = args['badge-y-offset'] || [];
+  const scales = args['badge-scale'] || [];
+  const gaps = args['badge-gap'] || [];
   badgeOpts = {
-    customBadgeSvg: badgeSvgText,
-    badgeXOffset: parseFloat(args['badge-x-offset']),
-    badgeYOffset: parseFloat(args['badge-y-offset']),
-    badgeScale: parseFloat(args['badge-scale']),
-    badgeGap: parseFloat(args['badge-gap']),
-    badgeAnchor: args['badge-anchor'],
+    badges: await Promise.all(badgeSvgFiles.map(async (file, i) => {
+      const svgText = await readFile(resolve(file), 'utf-8');
+      if (!svgText.includes('<svg')) {
+        console.error(`Error: --badge-svg file "${file}" does not contain valid SVG markup.`);
+        process.exit(1);
+      }
+      return {
+        svgText,
+        xOffset: parseFloat(xOffsets[i] ?? '0'),
+        yOffset: parseFloat(yOffsets[i] ?? '0'),
+        scale: parseFloat(scales[i] ?? '1'),
+        gap: parseFloat(gaps[i] ?? '1'),
+        anchor: badgeAnchors[i] || 'br',
+      };
+    })),
   };
 }
 
