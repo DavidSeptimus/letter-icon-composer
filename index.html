@@ -2104,6 +2104,7 @@ function selectBadge(id) {
   document.querySelectorAll('.badge-list-item').forEach(el => {
     el.classList.toggle('selected', +el.dataset.badgeId === id);
   });
+  drawSizeGuides();
 }
 
 function loadTuningFromBadge(b) {
