@@ -72,7 +72,7 @@ function applyModifierClipPath(svgString, modifierKey, modifierColor, viewBoxSiz
   // Build a clip path that approximates the badge bounding box
   const s = viewBoxSize;
   const { tx, ty, scale, badgeW, badgeH, minX, minY } = placement;
-  const gap = opts.badgeGap ?? 0.5;
+  const gap = opts.badgeGap ?? 1;
 
   // Badge bounding rect in output coordinates, expanded by gap
   const bx = tx + minX * scale - gap;
@@ -282,7 +282,7 @@ async function createFullEngine(paper) {
 
     if (!placement.inner) return svgString;
 
-    const gap = opts.badgeGap ?? 0.5;
+    const gap = opts.badgeGap ?? 1;
 
     // Import badge silhouette and expand by gap to create the cutout shape
     const notch = importBadgeSilhouette(

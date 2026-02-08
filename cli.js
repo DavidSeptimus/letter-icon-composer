@@ -229,7 +229,7 @@ const { values: args } = parseArgs({
     'badge-x-offset': { type: 'string', default: '0' },
     'badge-y-offset': { type: 'string', default: '0' },
     'badge-scale':    { type: 'string', default: '1' },
-    'badge-gap':      { type: 'string', default: '0.5' },
+    'badge-gap':      { type: 'string', default: '1' },
     name:        { type: 'string',  short: 'n' },
     out:         { type: 'string',  short: 'o', default: '.' },
     'light-fill':   { type: 'string' },
@@ -284,7 +284,7 @@ Modifier:
   --badge-x-offset <n>     Badge horizontal offset (default: 0)
   --badge-y-offset <n>     Badge vertical offset (default: 0)
   --badge-scale <n>        Badge scale factor (default: 1.0)
-  --badge-gap <n>          Gap around badge silhouette cutout (default: 0.5)
+  --badge-gap <n>          Gap around badge silhouette cutout (default: 1)
 
 Output:
   -n, --name <name>        Base file name (default: derived from letter)
