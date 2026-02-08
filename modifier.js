@@ -6,7 +6,8 @@
  * renders a custom badge icon in the freed area.
  *
  * When Paper.js is available: boolean path subtraction using expanded badge
- * silhouette + stroke rings for circle/rect, clipPath for path elements.
+ * silhouette + stroke rings for circle/rect. Compound fill-only paths also
+ * use boolean subtraction. Stroked paths and fill-none use clipPath.
  *
  * When Paper.js is unavailable: pure clipPath fallback (no dependencies).
  */
@@ -136,7 +137,12 @@ async function createFullEngine(paper) {
     } else if (tag === 'path') {
       const d = el.getAttribute('d');
       if (!d) return null;
-      p = new paper.Path(d);
+      // Use CompoundPath for multi-subpath data for correct boolean operations
+      if (d.split(/[Mm]/).length > 2) {
+        p = new paper.CompoundPath(d);
+      } else {
+        p = new paper.Path(d);
+      }
     } else if (tag === 'ellipse') {
       const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy');
       const rx = +el.getAttribute('rx'), ry = +el.getAttribute('ry');
@@ -199,25 +205,8 @@ async function createFullEngine(paper) {
     return result;
   }
 
-  function expandSinglePath(path, gap) {
-    const len = path.length;
-    if (len <= 0) return path.clone();
-
-    // Place circles along the path to create a smooth buffer (Minkowski sum).
-    // Step size balances quality vs performance; gap-relative so small gaps
-    // don't over-sample and large gaps stay smooth.
-    const step = Math.max(0.2, Math.min(0.6, gap * 0.6));
-    const circles = [];
-
-    for (let d = 0; d < len; d += step) {
-      const pt = path.getPointAt(d);
-      if (pt) circles.push(new paper.Path.Circle(pt, gap));
-    }
-
-    if (circles.length === 0) return path.clone();
-
-    // Tree-reduce: unite circles pairwise for O(n log n) boolean ops
-    let shapes = circles;
+  /** Tree-reduce: unite shapes pairwise for O(n log n) boolean ops */
+  function treeUnite(shapes) {
     while (shapes.length > 1) {
       const next = [];
       for (let i = 0; i < shapes.length; i += 2) {
@@ -232,11 +221,33 @@ async function createFullEngine(paper) {
       }
       shapes = next;
     }
+    return shapes[0];
+  }
 
-    // Unite circle buffer with original path
-    const result = path.unite(shapes[0]);
-    shapes[0].remove();
-    // Simplify to fit clean bezier curves through the many circle-union segments
+  /**
+   * Build a Minkowski circle buffer along a path's boundary.
+   * Used by both expand (unite buffer with path) and contract (subtract buffer from path).
+   */
+  function buildCircleBuffer(path, radius) {
+    const len = path.length;
+    if (len <= 0) return null;
+    const step = Math.max(0.2, Math.min(0.6, radius * 0.6));
+    const circles = [];
+    for (let d = 0; d < len; d += step) {
+      const pt = path.getPointAt(d);
+      if (pt) circles.push(new paper.Path.Circle(pt, radius));
+    }
+    if (circles.length === 0) return null;
+    return treeUnite(circles);
+  }
+
+  function expandSinglePath(path, gap) {
+    const len = path.length;
+    if (len <= 0) return path.clone();
+    const buffer = buildCircleBuffer(path, gap);
+    if (!buffer) return path.clone();
+    const result = path.unite(buffer);
+    buffer.remove();
     result.simplify(0.05);
     return result;
   }
@@ -400,8 +411,10 @@ async function createFullEngine(paper) {
       const hasStroke = strokeColor && strokeColor !== 'none' && strokeWidth > 0;
       const isCircleOrRect = tag === 'circle' || tag === 'rect';
 
-      const isCompoundPath = tag === 'path' && (el.getAttribute('d') || '').split(/[Mm]/).length > 2;
-      if (isFillNone || (tag === 'path' && hasStroke) || isCompoundPath) {
+      // Stroked paths and fill-none elements use clipPath — stroke-to-fill
+      // decomposition via Minkowski is too imprecise for exact shape geometry.
+      // Circle/rect strokes use analytical decomposition in the boolean path below.
+      if (isFillNone || (tag === 'path' && hasStroke)) {
         ensureClipDef();
         el.setAttribute('clip-path', 'url(#nc)');
         const parent = el.parentNode;
