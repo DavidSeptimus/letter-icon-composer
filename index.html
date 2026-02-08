@@ -2226,6 +2226,19 @@ badgeDropZone.addEventListener('drop', e => {
 });
 
 badgeDropZone.addEventListener('paste', e => {
+  // Check for pasted files first (e.g. copied file from file manager)
+  const files = e.clipboardData.files;
+  if (files.length > 0) {
+    const file = files[0];
+    if (file.type === 'image/svg+xml' || file.name?.endsWith('.svg')) {
+      e.preventDefault();
+      const reader = new FileReader();
+      reader.onload = evt => addBadge(evt.target.result, file.name || 'pasted.svg');
+      reader.readAsText(file);
+      return;
+    }
+  }
+  // Fall back to pasted SVG text
   const text = e.clipboardData.getData('text');
   if (text && text.includes('<svg')) {
     e.preventDefault();
