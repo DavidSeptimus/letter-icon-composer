@@ -225,13 +225,11 @@ const { values: args } = parseArgs({
     'stroke-width': { type: 'string', default: '1' },
     'shape-scale':  { type: 'string' },
     modifier:    { type: 'string',  short: 'm' },
-    'notch-width':  { type: 'string' },
-    'notch-height': { type: 'string' },
-    'notch-radius': { type: 'string' },
     'badge-svg':    { type: 'string' },
     'badge-x-offset': { type: 'string', default: '0' },
     'badge-y-offset': { type: 'string', default: '0' },
     'badge-scale':    { type: 'string', default: '1' },
+    'badge-gap':      { type: 'string', default: '0.5' },
     name:        { type: 'string',  short: 'n' },
     out:         { type: 'string',  short: 'o', default: '.' },
     'light-fill':   { type: 'string' },
@@ -282,13 +280,11 @@ Fine Tuning:
 
 Modifier:
   -m, --modifier <name>    Badge modifier: ${Object.keys(MODIFIERS).join(', ')} (default: none)
-  --notch-width <n>        Notch width (default: 8)
-  --notch-height <n>       Notch height (default: 8)
-  --notch-radius <n>       Notch corner radius (default: 2)
   --badge-svg <file>       Custom SVG badge file (implies --modifier custom)
   --badge-x-offset <n>     Badge horizontal offset (default: 0)
   --badge-y-offset <n>     Badge vertical offset (default: 0)
   --badge-scale <n>        Badge scale factor (default: 1.0)
+  --badge-gap <n>          Gap around badge silhouette cutout (default: 0.5)
 
 Output:
   -n, --name <name>        Base file name (default: derived from letter)
@@ -465,10 +461,6 @@ if (modifierKey !== 'none') {
   ({ applyModifier } = await createModifierEngine(paper));
 }
 
-const nw = args['notch-width'] ? parseFloat(args['notch-width']) : 8;
-const nh = args['notch-height'] ? parseFloat(args['notch-height']) : 8;
-const nr = args['notch-radius'] ? parseFloat(args['notch-radius']) : 2;
-
 // Load custom badge SVG
 let badgeOpts = undefined;
 if (args['badge-svg']) {
@@ -482,6 +474,7 @@ if (args['badge-svg']) {
     badgeXOffset: parseFloat(args['badge-x-offset']),
     badgeYOffset: parseFloat(args['badge-y-offset']),
     badgeScale: parseFloat(args['badge-scale']),
+    badgeGap: parseFloat(args['badge-gap']),
   };
 }
 
@@ -524,8 +517,8 @@ let rawDark = darkResult.svg;
 
 if (modifierKey !== 'none') {
   const vbs = lightResult.viewBoxSize;
-  rawLight = applyModifier(rawLight, modifierKey, colors.lightStroke, vbs, nw, nh, nr, badgeOpts);
-  rawDark = applyModifier(rawDark, modifierKey, colors.darkStroke, vbs, nw, nh, nr, badgeOpts);
+  rawLight = applyModifier(rawLight, modifierKey, colors.lightStroke, vbs, badgeOpts);
+  rawDark = applyModifier(rawDark, modifierKey, colors.darkStroke, vbs, badgeOpts);
 }
 
 const lightSVG = optimizeSVG(rawLight);

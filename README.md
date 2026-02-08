@@ -20,7 +20,7 @@ IntelliJ plugin developers building custom language support who need icons consi
 
 1. [opentype.js](https://opentype.js.org) parses a font file and converts glyphs into SVG path data
 2. The letter path is composited onto the selected background shape with the appropriate theme colors
-3. If a badge SVG is provided, a corner notch is cut from the shape and the badge is uniformly scaled into the freed area ([Paper.js](http://paperjs.org) boolean subtraction for simple shapes, clipPath fallback for complex paths)
+3. If a badge SVG is provided, the badge silhouette (expanded by a configurable gap) is cut from the icon shape and the badge is overlaid ([Paper.js](http://paperjs.org) boolean subtraction for simple shapes, clipPath fallback for complex paths)
 4. [SVGO](https://svgo.dev) optimizes the final SVG using the same configuration as the [Sketch SVGO Compressor plugin](https://www.sketchapp.com/extensions/plugins/svgo-compressor/), which is the [recommended method](https://plugins.jetbrains.com/docs/intellij/icons.html) for optimizing icons per the JetBrains platform guidelines
 5. Light and dark theme variants are produced together
 
@@ -31,7 +31,7 @@ flowchart LR
     C --> D{Compose}
     D --> E{Badge?}
     E -- yes --> F[\Badge SVG/]
-    F --> G(Notch + Fit)
+    F --> G(Silhouette Cut)
     G --> H(SVGO)
     E -- no --> H
     H --> I((Icon))
@@ -43,7 +43,7 @@ flowchart LR
 - 9 color presets: blue, orange, purple, red, green, amber (JetBrains official), grey, teal, pink
 - Custom color overrides per theme variant
 - Font selection: Open Sans (default), Inter, Google Fonts, or local .ttf/.otf/.woff files
-- Optional badge overlay: import any SVG as a corner badge (drag-drop, paste, or file picker) with adjustable notch size, position, and scale
+- Optional badge overlay: import any SVG as a corner badge (drag-drop, paste, or file picker) with adjustable gap, position, and scale
 - Fine-tuning: font size, x/y offset, stroke width, shape scale
 - Optional SVGO optimization with file size display
 - CLI for scripting and batch generation (`--badge-svg` for badge overlay)

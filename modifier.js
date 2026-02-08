@@ -2,44 +2,25 @@
  * Letter Icon Composer — Modifier Engine
  * Shared Paper.js-based modifier processing for both browser UI and CLI.
  *
- * Applies a notch (bottom-right corner cutout) to SVG shapes and renders
- * a modifier badge icon in the freed area.
+ * Applies a badge silhouette cutout (bottom-right corner) to SVG shapes and
+ * renders a custom badge icon in the freed area.
  *
- * When Paper.js is available: boolean path subtraction + stroke rings for
- * circle/rect, clipPath for path elements.
+ * When Paper.js is available: boolean path subtraction using expanded badge
+ * silhouette + stroke rings for circle/rect, clipPath for path elements.
  *
  * When Paper.js is unavailable: pure clipPath fallback (no dependencies).
  */
 
 import { MODIFIERS } from './core.js';
 
-// ── Shared Helpers ───────────────────────────────────────────────────
+// ── Badge Placement ──────────────────────────────────────────────────
 
-function notchParams(viewBoxSize, nw, nh, nr) {
-  const s = viewBoxSize;
-  const W = nw || 8, H = nh || 8, R = Math.min(nr ?? 2, Math.min(W, H) / 2);
-  const left = s - W, top = s - H;
-  return { s, W, H, R, left, top };
-}
-
-function keepRegionPath(s, left, top, R) {
-  const cp1 = +(left + R * 0.44772).toFixed(3);
-  const cp2 = +(top + R * 0.44772).toFixed(3);
-  return `M0 0H${s}V${top}H${left + R}C${cp1} ${top} ${left} ${cp2} ${left} ${top + R}V${s}H0Z`;
-}
-
-function badgeTransform(left, top, W, H) {
-  const sx = W / 8, sy = H / 8;
-  const needsScale = sx !== 1 || sy !== 1;
-  const tx = left - 8 * sx, ty = top - 8 * sy;
-  if (!needsScale && tx === 0 && ty === 0) return '';
-  return ` transform="translate(${tx} ${ty})${needsScale ? ` scale(${sx} ${sy})` : ''}"`;
-}
-
-// ── Custom Badge Fit ──────────────────────────────────────────────────
-
-function computeUniformBadgeFit(badgeSvg, notchLeft, notchTop, notchW, notchH, xOff, yOff, userScale) {
-  // Parse viewBox (minX, minY, width, height) or fall back to width/height attrs
+/**
+ * Computes badge placement (position, scale, inner SVG content).
+ * Used by both the full engine (for silhouette import + rendering) and
+ * the clipPath fallback (for rendering only).
+ */
+function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale) {
   let minX = 0, minY = 0, badgeW = 16, badgeH = 16;
   const vbMatch = badgeSvg.match(/viewBox=["']([^"']+)["']/);
   if (vbMatch) {
@@ -55,55 +36,62 @@ function computeUniformBadgeFit(badgeSvg, notchLeft, notchTop, notchW, notchH, x
     if (hMatch) badgeH = parseFloat(hMatch[1]);
   }
 
-  // Uniform scale: fit (notchW-2) × (notchH-2), then apply user scale
-  const fitScale = Math.min((notchW - 2) / badgeW, (notchH - 2) / badgeH);
+  // Default target: viewBoxSize * 0.375 (equivalent to old notch=8 minus padding=2 → 6)
+  const targetSize = viewBoxSize * 0.375;
+  const fitScale = Math.min(targetSize / badgeW, targetSize / badgeH);
   const scale = fitScale * userScale;
 
   // Bottom-right alignment: badge corner flush with viewBox corner
-  const viewBoxSize = notchLeft + notchW;
   const tx = viewBoxSize - (minX + badgeW) * scale + xOff;
   const ty = viewBoxSize - (minY + badgeH) * scale + yOff;
 
   // Extract inner content between <svg...> and </svg>
   const innerMatch = badgeSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
   const inner = innerMatch ? innerMatch[1].trim() : '';
-  if (!inner) return '';
 
-  return `<g transform="translate(${+tx.toFixed(3)} ${+ty.toFixed(3)}) scale(${+scale.toFixed(4)})">${inner}</g>`;
+  return { tx, ty, scale, inner, minX, minY, badgeW, badgeH };
 }
 
 // ── ClipPath-Only Fallback (no dependencies) ─────────────────────────
 
-function applyModifierClipPath(svgString, modifierKey, modifierColor, viewBoxSize, nw, nh, nr, opts) {
+function applyModifierClipPath(svgString, modifierKey, modifierColor, viewBoxSize, opts) {
   if (!modifierKey || modifierKey === 'none') return svgString;
   const modDef = MODIFIERS[modifierKey];
   if (!modDef) return svgString;
 
-  const { s, W, H, R, left, top } = notchParams(viewBoxSize, nw, nh, nr);
-  const keepPath = keepRegionPath(s, left, top, R);
+  if (modifierKey !== 'custom' || !opts?.customBadgeSvg) return svgString;
 
-  // Build modifier badge markup
-  let modMarkup;
-  if (modifierKey === 'custom' && opts?.customBadgeSvg) {
-    modMarkup = computeUniformBadgeFit(opts.customBadgeSvg, left, top, W, H,
-      opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
-  } else {
-    modMarkup = modDef.generate(modifierColor);
-    const bt = badgeTransform(left, top, W, H);
-    if (bt) modMarkup = `<g${bt}>${modMarkup}</g>`;
-  }
+  const placement = computeBadgePlacement(
+    opts.customBadgeSvg, viewBoxSize,
+    opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
 
-  // Insert clipPath + wrapping group via string manipulation (no DOM needed)
-  const clipDef = `<defs><clipPath id="nc"><path d="${keepPath}"/></clipPath></defs>`;
+  if (!placement.inner) return svgString;
+
+  // Build a clip path that approximates the badge bounding box
+  const s = viewBoxSize;
+  const { tx, ty, scale, badgeW, badgeH, minX, minY } = placement;
+  const gap = opts.badgeGap ?? 0.5;
+
+  // Badge bounding rect in output coordinates, expanded by gap
+  const bx = tx + minX * scale - gap;
+  const by = ty + minY * scale - gap;
+  const bw = badgeW * scale + gap * 2;
+  const bh = badgeH * scale + gap * 2;
+
+  // keepRegion = full viewBox minus badge bbox
+  const keepPath = `M0 0H${s}V${s}H0Z M${bx} ${by}H${bx + bw}V${by + bh}H${bx}Z`;
+
+  const badgeMarkup = `<g transform="translate(${+tx.toFixed(3)} ${+ty.toFixed(3)}) scale(${+scale.toFixed(4)})">${placement.inner}</g>`;
+
+  const clipDef = `<defs><clipPath id="nc"><path d="${keepPath}" fill-rule="evenodd"/></clipPath></defs>`;
   svgString = svgString.replace(/(<svg[^>]*>)/, `$1${clipDef}<g clip-path="url(#nc)">`);
-  svgString = svgString.replace('</svg>', `</g>${modMarkup}</svg>`);
+  svgString = svgString.replace('</svg>', `</g>${badgeMarkup}</svg>`);
   return svgString;
 }
 
 // ── Full Paper.js Engine ─────────────────────────────────────────────
 
 async function createFullEngine(paper) {
-  // Resolve DOM parser — browser-native or jsdom for Node.js
   let DOMParser_, XMLSerializer_;
   if (typeof globalThis.DOMParser !== 'undefined') {
     DOMParser_ = globalThis.DOMParser;
@@ -149,12 +137,168 @@ async function createFullEngine(paper) {
       const d = el.getAttribute('d');
       if (!d) return null;
       p = new paper.Path(d);
+    } else if (tag === 'ellipse') {
+      const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy');
+      const rx = +el.getAttribute('rx'), ry = +el.getAttribute('ry');
+      p = new paper.Path.Ellipse(new paper.Rectangle(cx - rx, cy - ry, rx * 2, ry * 2));
+    } else if (tag === 'polygon' || tag === 'polyline') {
+      const pts = el.getAttribute('points').trim().split(/[\s,]+/).map(Number);
+      const segments = [];
+      for (let i = 0; i < pts.length; i += 2)
+        segments.push(new paper.Point(pts[i], pts[i + 1]));
+      p = new paper.Path(segments);
+      if (tag === 'polygon') p.closePath();
+    } else if (tag === 'line') {
+      p = new paper.Path.Line(
+        new paper.Point(+el.getAttribute('x1'), +el.getAttribute('y1')),
+        new paper.Point(+el.getAttribute('x2'), +el.getAttribute('y2')));
     } else {
       return null;
     }
     const t = el.getAttribute('transform');
     if (t) applyPaperTransform(p, t);
     return p;
+  }
+
+  /**
+   * Expand a path outward by `gap` using Minkowski-sum approximation.
+   * Places circles along the path boundary and unites them — this naturally
+   * handles sharp corners (rounding them) and never creates self-intersections.
+   */
+  function expandPath(path, gap) {
+    if (gap <= 0) return path.clone();
+
+    // For compound paths, flatten to a single unified outline first
+    let sourcePath = path;
+    if (path.className === 'CompoundPath') {
+      let unified = path.children[0].clone();
+      for (let i = 1; i < path.children.length; i++) {
+        const next = unified.unite(path.children[i]);
+        unified.remove();
+        unified = next;
+      }
+      sourcePath = unified;
+    }
+
+    // If it's still compound after union, process each child
+    if (sourcePath.className === 'CompoundPath') {
+      const children = sourcePath.children.map(child => expandSinglePath(child, gap));
+      let result = children[0];
+      for (let i = 1; i < children.length; i++) {
+        const next = result.unite(children[i]);
+        result.remove();
+        children[i].remove();
+        result = next;
+      }
+      if (sourcePath !== path) sourcePath.remove();
+      return result;
+    }
+
+    const result = expandSinglePath(sourcePath, gap);
+    if (sourcePath !== path) sourcePath.remove();
+    return result;
+  }
+
+  function expandSinglePath(path, gap) {
+    const len = path.length;
+    if (len <= 0) return path.clone();
+
+    // Place circles along the path to create a smooth buffer (Minkowski sum).
+    // Step size balances quality vs performance; gap-relative so small gaps
+    // don't over-sample and large gaps stay smooth.
+    const step = Math.max(0.2, Math.min(0.6, gap * 0.6));
+    const circles = [];
+
+    for (let d = 0; d < len; d += step) {
+      const pt = path.getPointAt(d);
+      if (pt) circles.push(new paper.Path.Circle(pt, gap));
+    }
+
+    if (circles.length === 0) return path.clone();
+
+    // Tree-reduce: unite circles pairwise for O(n log n) boolean ops
+    let shapes = circles;
+    while (shapes.length > 1) {
+      const next = [];
+      for (let i = 0; i < shapes.length; i += 2) {
+        if (i + 1 < shapes.length) {
+          const u = shapes[i].unite(shapes[i + 1]);
+          shapes[i].remove();
+          shapes[i + 1].remove();
+          next.push(u);
+        } else {
+          next.push(shapes[i]);
+        }
+      }
+      shapes = next;
+    }
+
+    // Unite circle buffer with original path
+    const result = path.unite(shapes[0]);
+    shapes[0].remove();
+    // Simplify to fit clean bezier curves through the many circle-union segments
+    result.simplify(0.05);
+    return result;
+  }
+
+  /**
+   * Import badge SVG shapes, position them, unite, and expand by gap.
+   * Returns a single Paper.js Path to use as the cutout (replaces old rectangular notch).
+   */
+  function importBadgeSilhouette(badgeSvg, tx, ty, scale, gap) {
+    const badgeDoc = new DOMParser_().parseFromString(badgeSvg, 'image/svg+xml');
+    const badgeSvgEl = badgeDoc.documentElement;
+
+    const paths = [];
+    function collectPaths(el, parentTransform) {
+      const tag = el.tagName?.toLowerCase();
+      if (!tag) return;
+
+      if (tag === 'g' || tag === 'svg') {
+        const t = el.getAttribute('transform');
+        const combined = parentTransform && t ? `${parentTransform} ${t}` : (t || parentTransform);
+        for (const child of Array.from(el.children)) collectPaths(child, combined);
+        return;
+      }
+
+      // Skip non-visible elements
+      const fill = el.getAttribute('fill');
+      const stroke = el.getAttribute('stroke');
+      const display = el.getAttribute('display');
+      const visibility = el.getAttribute('visibility');
+      if (display === 'none' || visibility === 'hidden') return;
+      if (fill === 'none' && (!stroke || stroke === 'none')) return;
+
+      const p = svgElToPaperPath(el);
+      if (p) {
+        if (parentTransform) applyPaperTransform(p, parentTransform);
+        paths.push(p);
+      }
+    }
+
+    collectPaths(badgeSvgEl, null);
+    if (paths.length === 0) return null;
+
+    // Unite all shapes into a single path
+    let united = paths[0];
+    for (let i = 1; i < paths.length; i++) {
+      const next = united.unite(paths[i]);
+      united.remove();
+      paths[i].remove();
+      united = next;
+    }
+
+    // Apply badge positioning: translate + scale
+    const matrix = new paper.Matrix();
+    matrix.translate(tx, ty);
+    matrix.scale(scale, new paper.Point(0, 0));
+    united.transform(matrix);
+
+    // Expand by gap
+    const expanded = expandPath(united, gap);
+    if (expanded !== united) united.remove();
+
+    return expanded;
   }
 
   const STYLE_ATTRS = ['fill', 'stroke', 'stroke-width', 'fill-rule', 'clip-rule',
@@ -188,17 +332,29 @@ async function createFullEngine(paper) {
     return { inner, ring };
   }
 
-  function applyModifier(svgString, modifierKey, modifierColor, viewBoxSize, nw, nh, nr, opts) {
+  function applyModifier(svgString, modifierKey, modifierColor, viewBoxSize, opts) {
     if (!modifierKey || modifierKey === 'none') return svgString;
     const modDef = MODIFIERS[modifierKey];
     if (!modDef) return svgString;
 
+    if (modifierKey !== 'custom' || !opts?.customBadgeSvg) return svgString;
+
     paperScope.activate();
-    const { s, W, H, R, left, top } = notchParams(viewBoxSize, nw, nh, nr);
-    const cp1x = left, cp1y = +(top + R * 0.44772).toFixed(3);
-    const cp2x = +(left + R * 0.44772).toFixed(3), cp2y = top;
-    const notch = new paper.Path(
-      `M${left + R} ${top}H${s}V${s}H${left}V${top + R}C${cp1x} ${cp1y} ${cp2x} ${cp2y} ${left + R} ${top}Z`);
+    const s = viewBoxSize;
+
+    const placement = computeBadgePlacement(
+      opts.customBadgeSvg, viewBoxSize,
+      opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
+
+    if (!placement.inner) return svgString;
+
+    const gap = opts.badgeGap ?? 0.5;
+
+    // Import badge silhouette and expand by gap to create the cutout shape
+    const notch = importBadgeSilhouette(
+      opts.customBadgeSvg, placement.tx, placement.ty, placement.scale, gap);
+
+    if (!notch) return svgString;
 
     const xmlParser = new DOMParser_();
     const doc = xmlParser.parseFromString(svgString, 'image/svg+xml');
@@ -244,8 +400,6 @@ async function createFullEngine(paper) {
       const hasStroke = strokeColor && strokeColor !== 'none' && strokeWidth > 0;
       const isCircleOrRect = tag === 'circle' || tag === 'rect';
 
-      // ClipPath for: stroke-only elements, path elements with stroke,
-      // or compound paths (multiple subpaths — boolean ops produce garbage)
       const isCompoundPath = tag === 'path' && (el.getAttribute('d') || '').split(/[Mm]/).length > 2;
       if (isFillNone || (tag === 'path' && hasStroke) || isCompoundPath) {
         ensureClipDef();
@@ -263,7 +417,6 @@ async function createFullEngine(paper) {
         return;
       }
 
-      // Boolean subtraction for: circle/rect (with stroke ring), fill-only paths
       const pp = svgElToPaperPath(el);
       if (!pp) return;
       if (parentTransform) applyPaperTransform(pp, parentTransform);
@@ -317,19 +470,11 @@ async function createFullEngine(paper) {
     for (const child of Array.from(svgEl.children)) processEl(child, null);
     notch.remove();
 
-    // Add modifier badge
-    let modMarkup;
-    if (modifierKey === 'custom' && opts?.customBadgeSvg) {
-      modMarkup = computeUniformBadgeFit(opts.customBadgeSvg, left, top, W, H,
-        opts.badgeXOffset || 0, opts.badgeYOffset || 0, opts.badgeScale ?? 1.0);
-    } else {
-      modMarkup = modDef.generate(modifierColor);
-      const bt = badgeTransform(left, top, W, H);
-      if (bt) modMarkup = `<g${bt}>${modMarkup}</g>`;
-    }
+    // Add badge rendering
+    const badgeMarkup = `<g transform="translate(${+placement.tx.toFixed(3)} ${+placement.ty.toFixed(3)}) scale(${+placement.scale.toFixed(4)})">${placement.inner}</g>`;
 
     const modDoc = xmlParser.parseFromString(
-      `<svg xmlns="http://www.w3.org/2000/svg">${modMarkup}</svg>`, 'image/svg+xml');
+      `<svg xmlns="http://www.w3.org/2000/svg">${badgeMarkup}</svg>`, 'image/svg+xml');
     for (const child of Array.from(modDoc.documentElement.children))
       svgEl.appendChild(doc.importNode(child, true));
 
@@ -345,3 +490,6 @@ export async function createModifierEngine(paper) {
   if (paper) return createFullEngine(paper);
   return { applyModifier: applyModifierClipPath };
 }
+
+// ── Exported for UI guide computation ────────────────────────────────
+export { computeBadgePlacement };

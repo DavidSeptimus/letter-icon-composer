@@ -730,20 +730,10 @@
             <input type="range" id="badgeScale" min="0.3" max="2.0" step="0.05" value="1">
             <span class="slider-val" id="badgeScaleVal">1.00</span>
           </div>
-          <label style="margin-top:8px">Notch Width</label>
+          <label style="margin-top:8px">Gap</label>
           <div class="slider-row">
-            <input type="range" id="notchWidth" min="4" max="12" step="0.5" value="8">
-            <span class="slider-val" id="notchWidthVal">8.0</span>
-          </div>
-          <label style="margin-top:8px">Notch Height</label>
-          <div class="slider-row">
-            <input type="range" id="notchHeight" min="4" max="12" step="0.5" value="8">
-            <span class="slider-val" id="notchHeightVal">8.0</span>
-          </div>
-          <label style="margin-top:8px">Notch Radius</label>
-          <div class="slider-row">
-            <input type="range" id="notchRadius" min="0" max="6" step="0.5" value="2">
-            <span class="slider-val" id="notchRadiusVal">2.0</span>
+            <input type="range" id="badgeGap" min="0" max="2" step="0.1" value="0.5">
+            <span class="slider-val" id="badgeGapVal">0.5</span>
           </div>
         </div>
       </details>
@@ -772,7 +762,7 @@
       <button class="style-toggle" id="toggleGuideLetter" title="Letter size guide">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="rgba(100,200,255,0.85)" stroke="none"><text x="8" y="12.5" text-anchor="middle" font-size="12" font-weight="600" font-family="sans-serif">A</text></svg>
       </button>
-      <button class="style-toggle" id="toggleGuideNotch" style="display:none" title="Notch size guide">
+      <button class="style-toggle" id="toggleGuideNotch" style="display:none" title="Gap size guide">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="rgba(255,180,50,0.85)" stroke-width="1.2"><path d="M10 14H14V10" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <button class="style-toggle" id="toggleGuideBadge" style="display:none" title="Badge size guide">
@@ -980,7 +970,7 @@
     <ol>
       <li><a href="https://opentype.js.org" target="_blank">opentype.js</a> converts font glyphs into SVG path data</li>
       <li>The path is composited onto a background shape</li>
-      <li>If a badge SVG is provided, a corner notch is cut and the badge is scaled to fit</li>
+      <li>If a badge SVG is provided, the badge silhouette is cut from the icon corner and the badge is overlaid</li>
       <li><a href="https://svgo.dev" target="_blank">SVGO</a> optimizes the final SVG</li>
     </ol>
     <div class="flowchart">
@@ -1068,7 +1058,7 @@ import {
   boundFontSizeToShape as boundFontSizeToShapeCore,
   generateSVG as generateSVGCore,
 } from './core.js';
-import { createModifierEngine } from './modifier.js';
+import { createModifierEngine, computeBadgePlacement } from './modifier.js';
 
 // ── State ─────────────────────────────────────────────────────────────
 let currentFont = null;
@@ -1432,45 +1422,24 @@ function computeGuideBounds() {
     }
   }
 
-  // ── Notch bounds
+  // ── Badge + gap bounds via computeBadgePlacement
   if (customBadgeSvg) {
-    const nw = parseFloat(document.getElementById('notchWidth').value);
-    const nh = parseFloat(document.getElementById('notchHeight').value);
-    bounds.notch = { x: s - nw, y: s - nh, w: nw, h: nh };
-  }
-
-  // ── Badge bounds: replicate computeUniformBadgeFit math
-  if (customBadgeSvg) {
-    const nw = parseFloat(document.getElementById('notchWidth').value);
-    const nh = parseFloat(document.getElementById('notchHeight').value);
-    const left = s - nw, top = s - nh;
     const bxOff = parseFloat(document.getElementById('badgeXOffset').value);
     const byOff = parseFloat(document.getElementById('badgeYOffset').value);
     const userScale = parseFloat(document.getElementById('badgeScale').value);
+    const gap = parseFloat(document.getElementById('badgeGap').value);
 
-    // Parse badge viewBox
-    let minX = 0, minY = 0, badgeW = 16, badgeH = 16;
-    const vbMatch = customBadgeSvg.match(/viewBox=["']([^"']+)["']/);
-    if (vbMatch) {
-      const parts = vbMatch[1].trim().split(/[\s,]+/).map(Number);
-      if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
-        minX = parts[0]; minY = parts[1];
-        badgeW = parts[2]; badgeH = parts[3];
-      }
-    } else {
-      const wMatch = customBadgeSvg.match(/\bwidth=["']([0-9.]+)["']/);
-      const hMatch = customBadgeSvg.match(/\bheight=["']([0-9.]+)["']/);
-      if (wMatch) badgeW = parseFloat(wMatch[1]);
-      if (hMatch) badgeH = parseFloat(hMatch[1]);
-    }
+    const p = computeBadgePlacement(customBadgeSvg, s, bxOff, byOff, userScale);
+    const finalW = p.badgeW * p.scale;
+    const finalH = p.badgeH * p.scale;
+    const bx = p.tx + p.minX * p.scale;
+    const by = p.ty + p.minY * p.scale;
 
-    const fitScale = Math.min((nw - 2) / badgeW, (nh - 2) / badgeH);
-    const scale = fitScale * userScale;
-    const tx = s - (minX + badgeW) * scale + bxOff;
-    const ty = s - (minY + badgeH) * scale + byOff;
-    const finalW = badgeW * scale;
-    const finalH = badgeH * scale;
-    bounds.badge = { x: tx, y: ty, w: finalW, h: finalH };
+    // Badge bounds
+    bounds.badge = { x: bx, y: by, w: finalW, h: finalH };
+
+    // Gap/notch bounds = badge bbox inflated by gap
+    bounds.notch = { x: bx - gap, y: by - gap, w: finalW + gap * 2, h: finalH + gap * 2 };
   }
 
   return bounds;
@@ -1524,17 +1493,15 @@ function render() {
   let rawDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
 
   if (customBadgeSvg) {
-    const nw = parseFloat(document.getElementById('notchWidth').value);
-    const nh = parseFloat(document.getElementById('notchHeight').value);
-    const nr = parseFloat(document.getElementById('notchRadius').value);
     const opts = {
       customBadgeSvg,
       badgeXOffset: parseFloat(document.getElementById('badgeXOffset').value),
       badgeYOffset: parseFloat(document.getElementById('badgeYOffset').value),
       badgeScale: parseFloat(document.getElementById('badgeScale').value),
+      badgeGap: parseFloat(document.getElementById('badgeGap').value),
     };
-    rawLight = applyModifier(rawLight, 'custom', lightStroke, lastViewBoxSize, nw, nh, nr, opts);
-    rawDark = applyModifier(rawDark, 'custom', darkStroke, lastViewBoxSize, nw, nh, nr, opts);
+    rawLight = applyModifier(rawLight, 'custom', lightStroke, lastViewBoxSize, opts);
+    rawDark = applyModifier(rawDark, 'custom', darkStroke, lastViewBoxSize, opts);
   }
 
   svgLight = optimizeSVG(rawLight);
@@ -1981,26 +1948,20 @@ bindSlider('fontSize', 'fontSizeVal');
 bindSlider('yOffset', 'yOffsetVal');
 bindSlider('xOffset', 'xOffsetVal');
 bindSlider('strokeWidth', 'strokeWidthVal');
-bindSlider('notchWidth', 'notchWidthVal');
-bindSlider('notchHeight', 'notchHeightVal');
-bindSlider('notchRadius', 'notchRadiusVal');
+bindSlider('badgeGap', 'badgeGapVal');
 bindSlider('badgeXOffset', 'badgeXOffsetVal');
 bindSlider('badgeYOffset', 'badgeYOffsetVal');
 bindSlider('badgeScale', 'badgeScaleVal', 2);
 
 document.getElementById('resetModifierSliders').addEventListener('click', () => {
-  document.getElementById('notchWidth').value = 8;
-  document.getElementById('notchWidthVal').textContent = '8.0';
-  document.getElementById('notchHeight').value = 8;
-  document.getElementById('notchHeightVal').textContent = '8.0';
-  document.getElementById('notchRadius').value = 2;
-  document.getElementById('notchRadiusVal').textContent = '2.0';
   document.getElementById('badgeXOffset').value = 0;
   document.getElementById('badgeXOffsetVal').textContent = '0.0';
   document.getElementById('badgeYOffset').value = 0;
   document.getElementById('badgeYOffsetVal').textContent = '0.0';
   document.getElementById('badgeScale').value = 1;
   document.getElementById('badgeScaleVal').textContent = '1.00';
+  document.getElementById('badgeGap').value = 0.5;
+  document.getElementById('badgeGapVal').textContent = '0.5';
   render();
 });
 
