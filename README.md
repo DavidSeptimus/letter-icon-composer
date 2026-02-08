@@ -78,6 +78,24 @@ node cli.js --list shapes
 
 Run `node cli.js --help` for all options.
 
+### Text-to-SVG (letter badges)
+
+The `text-to-svg` subcommand converts text to SVG `<path>` elements, useful for creating letter badges that can be fed back into the main tool via `--badge-svg`.
+
+```bash
+# Generate a bold "N" letter badge
+node cli.js text-to-svg -t "N" --bold -o badge.svg
+
+# Multi-character badge with tight bounding box
+node cli.js text-to-svg -t "Ab" --tight --color "#3574F0"
+
+# Compose: letter badge on a circle icon
+node cli.js text-to-svg -t "N" --bold --color "#3574F0" -o /tmp/badge.svg
+node cli.js -l E -s circle -c blue --badge-svg /tmp/badge.svg -o ./icons/
+```
+
+Run `node cli.js text-to-svg --help` for all options.
+
 ## Output
 
 Each invocation produces two files:

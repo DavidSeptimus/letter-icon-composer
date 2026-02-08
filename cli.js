@@ -38,9 +38,174 @@ import {
   getFontUrl,
   getGoogleFontUrl,
   calibrateFontSize,
+  generateLetterPath,
   generateSVG,
 } from './core.js';
 import { createModifierEngine } from './modifier.js';
+
+// ── Text-to-SVG Subcommand ──────────────────────────────────────────
+if (process.argv[2] === 'text-to-svg') {
+  const { values: ta } = parseArgs({
+    args: process.argv.slice(3),
+    options: {
+      text:          { type: 'string', short: 't' },
+      font:          { type: 'string', short: 'f', default: 'open-sans' },
+      'font-file':   { type: 'string' },
+      'google-font': { type: 'string' },
+      'font-weight': { type: 'string', default: '600' },
+      bold:          { type: 'boolean', default: false },
+      italic:        { type: 'boolean', default: false },
+      'font-size':   { type: 'string' },
+      color:         { type: 'string', default: '#000000' },
+      size:          { type: 'string', default: '16' },
+      padding:       { type: 'string', default: '0' },
+      tight:         { type: 'boolean', default: false },
+      out:           { type: 'string', short: 'o' },
+      help:          { type: 'boolean', short: 'h', default: false },
+    },
+    strict: false,
+  });
+
+  if (ta.help) {
+    console.log(`
+Text to SVG Paths — Subcommand
+
+Converts text to SVG <path> elements. Useful for creating letter badges
+that can be fed back into the main tool via --badge-svg.
+
+Usage:
+  node cli.js text-to-svg --text <string> [options]
+
+Required:
+  -t, --text <string>      Text to convert to paths
+
+Font:
+  -f, --font <key>         Built-in font: open-sans, inter (default: open-sans)
+  --font-file <path>       Load a local .ttf/.otf/.woff file
+  --google-font <name>     Load a Google Font by name (e.g. "Roboto")
+  --font-weight <weight>   Google font weight: 400, 500, 600, 700 (default: 600)
+  --bold                   Use bold variant
+  --italic                 Use italic variant
+
+Sizing:
+  --font-size <n>          Font size in SVG units (auto-fit to viewBox if omitted)
+  --size <n>               ViewBox size — square (default: 16)
+  --padding <n>            Padding around text in SVG units (default: 0)
+  --tight                  Shrink-wrap viewBox to glyph bounding box
+
+Output:
+  --color <hex>            Fill color (default: #000000)
+  -o, --out <file>         Write to file instead of stdout
+
+Examples:
+  node cli.js text-to-svg -t "N" --bold
+  node cli.js text-to-svg -t "Ab" --font inter --size 16
+  node cli.js text-to-svg -t "+" --tight --color "#3574F0"
+  node cli.js text-to-svg -t "N" -o badge.svg
+  node cli.js -l E -s circle -c blue --badge-svg <(node cli.js text-to-svg -t "N")
+`);
+    process.exit(0);
+  }
+
+  if (!ta.text) {
+    console.error('Error: --text is required. Run "node cli.js text-to-svg --help" for usage.');
+    process.exit(1);
+  }
+
+  // Load font (self-contained to avoid depending on main-flow args)
+  async function loadTextFont() {
+    if (ta['font-file']) {
+      const buf = await readFile(resolve(ta['font-file']));
+      return opentype.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+    }
+    if (ta['google-font']) {
+      const urls = getGoogleFontUrl(ta['google-font'], ta['font-weight'], ta.bold, ta.italic);
+      for (const url of urls) {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) continue;
+          return opentype.parse(await resp.arrayBuffer());
+        } catch { /* try next subset */ }
+      }
+      console.error(`Error: Could not load Google Font "${ta['google-font']}". Check spelling.`);
+      process.exit(1);
+    }
+    const url = getFontUrl(ta.font, ta.bold, ta.italic);
+    if (!url) {
+      console.error(`Error: Font "${ta.font}" does not have the requested variant (bold=${ta.bold}, italic=${ta.italic}).`);
+      process.exit(1);
+    }
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      console.error(`Error: Failed to download font from ${url}`);
+      process.exit(1);
+    }
+    return opentype.parse(await resp.arrayBuffer());
+  }
+
+  const font = await loadTextFont();
+  const vbSize = parseFloat(ta.size);
+  const padding = parseFloat(ta.padding);
+  const color = ta.color;
+  const center = vbSize / 2;
+
+  // Determine font size — auto-calibrate to fit viewBox if not specified
+  let fontSize;
+  if (ta['font-size']) {
+    fontSize = parseFloat(ta['font-size']);
+  } else {
+    const targetH = vbSize - 2 * padding;
+    fontSize = calibrateFontSize(font, ta.text, targetH);
+    // Also bound horizontally so multi-char text fits
+    const probe = font.getPath(ta.text, 0, 0, fontSize);
+    const bb = probe.getBoundingBox();
+    const w = bb.x2 - bb.x1;
+    const h = bb.y2 - bb.y1;
+    if (w > 0 && h > 0) {
+      const maxDim = vbSize - 2 * padding;
+      const scale = Math.min(maxDim / w, maxDim / h, 1);
+      if (scale < 1) fontSize = Math.round(fontSize * scale * 10) / 10;
+    }
+  }
+
+  let svg;
+  if (ta.tight) {
+    // Tight bounding box — viewBox wraps the glyph exactly (+ padding)
+    const path = font.getPath(ta.text, 0, 0, fontSize);
+    const bb = path.getBoundingBox();
+    const w = bb.x2 - bb.x1;
+    const h = bb.y2 - bb.y1;
+    const vw = Math.round((w + 2 * padding) * 100) / 100;
+    const vh = Math.round((h + 2 * padding) * 100) / 100;
+    const tx = padding - bb.x1;
+    const ty = padding - bb.y1;
+    const tightPath = font.getPath(ta.text, tx, ty, fontSize);
+    const d = tightPath.toPathData(2);
+    svg = `<svg width="${vw}" height="${vh}" viewBox="0 0 ${vw} ${vh}" fill="none" xmlns="http://www.w3.org/2000/svg">\n  <path d="${d}" fill="${color}"/>\n</svg>`;
+  } else {
+    // Fixed-size square viewBox with centered text
+    const { path, error } = generateLetterPath(font, ta.text, color, fontSize, 0, 0, center);
+    if (error) console.error(`Warning: ${error}`);
+    svg = `<svg width="${vbSize}" height="${vbSize}" viewBox="0 0 ${vbSize} ${vbSize}" fill="none" xmlns="http://www.w3.org/2000/svg">\n  ${path}\n</svg>`;
+  }
+
+  // Optimize with svgo
+  const optimized = optimize(svg, {
+    multipass: true,
+    plugins: [
+      { name: 'preset-default', params: { overrides: { removeViewBox: false, convertPathData: false } } },
+      'sortAttrs',
+    ],
+  }).data;
+
+  if (ta.out) {
+    await writeFile(resolve(ta.out), optimized + '\n');
+    console.error(`Created: ${resolve(ta.out)}`);
+  } else {
+    console.log(optimized);
+  }
+  process.exit(0);
+}
 
 // ── CLI Argument Parsing ─────────────────────────────────────────────
 const { values: args } = parseArgs({
@@ -143,6 +308,11 @@ Examples:
   node cli.js --list presets
   node cli.js --list shapes
   node cli.js --list modifiers
+
+Subcommands:
+  node cli.js text-to-svg --text <string> [options]
+    Convert text to SVG paths — useful for creating letter badges.
+    Run "node cli.js text-to-svg --help" for details.
 `);
   process.exit(0);
 }
