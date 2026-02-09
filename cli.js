@@ -32,6 +32,8 @@ import {
   calibrateFontSize,
   generateLetterPath,
   generateSVG,
+  createCustomShape,
+  generateBaseIconSVG,
 } from './core.js';
 import { createModifierEngine } from './modifier.js';
 
@@ -226,6 +228,8 @@ const { values: args } = parseArgs({
     'badge-scale':    { type: 'string', multiple: true },
     'badge-gap':      { type: 'string', multiple: true },
     'badge-anchor':   { type: 'string', multiple: true },
+    'custom-shape': { type: 'string' },
+    'base-icon':    { type: 'string' },
     name:        { type: 'string',  short: 'n' },
     out:         { type: 'string',  short: 'o', default: '.' },
     'light-fill':   { type: 'string' },
@@ -247,9 +251,14 @@ Letter Icon Composer — CLI
 
 Usage:
   node cli.js --letter <char> [options]
+  node cli.js --base-icon <svg-file> [--badge-svg <file>] [options]
 
-Required:
+Required (letter mode):
   -l, --letter <char>      Letter(s) to render (e.g. N, Ab)
+
+Modes:
+  --custom-shape <file>    Use an imported SVG as the background shape (letter mode)
+  --base-icon <file>       Badge composer — import an SVG icon and apply badge cutouts/overlays (no letter, no recoloring)
 
 Shape & Color:
   -s, --shape <name>       Shape: ${Object.keys(SHAPES).join(', ')} (default: circle)
@@ -300,6 +309,8 @@ Examples:
   node cli.js -l R -s document -c blue --font inter --bold
   node cli.js -l N -s circle -c blue --badge-svg badge.svg
   node cli.js -l N -s circle -c blue --badge-svg a.svg --badge-svg b.svg --badge-anchor br --badge-anchor tl
+  node cli.js -l N --custom-shape my-shape.svg -c blue -o ./icons/
+  node cli.js --base-icon logo.svg --badge-svg badge.svg -o ./icons/  # badge composer
   node cli.js --list presets
   node cli.js --list shapes
   node cli.js --list modifiers
@@ -342,12 +353,37 @@ if (args.list) {
 }
 
 // ── Validate Required Args ───────────────────────────────────────────
-if (!args.letter) {
-  console.error('Error: --letter is required. Run with --help for usage.');
+const isBaseIconMode = !!args['base-icon'];
+const isCustomShapeMode = !!args['custom-shape'];
+
+if (isBaseIconMode && isCustomShapeMode) {
+  console.error('Error: --base-icon and --custom-shape are mutually exclusive.');
   process.exit(1);
 }
 
-if (!SHAPES[args.shape]) {
+if (isBaseIconMode && args.letter) {
+  console.error('\x1b[33mWarning: --letter is ignored in badge composer mode.\x1b[0m');
+}
+
+if (!isBaseIconMode && !args.letter) {
+  console.error('Error: --letter is required (unless using --base-icon). Run with --help for usage.');
+  process.exit(1);
+}
+
+// Register custom shape if provided
+if (isCustomShapeMode) {
+  const shapeSvg = await readFile(resolve(args['custom-shape']), 'utf-8');
+  if (!shapeSvg.includes('<svg')) {
+    console.error(`Error: --custom-shape file "${args['custom-shape']}" does not contain valid SVG markup.`);
+    process.exit(1);
+  }
+  const label = args['custom-shape'].replace(/^.*[/\\]/, '').replace(/\.svg$/i, '');
+  const { key, shape } = createCustomShape(shapeSvg, label);
+  SHAPES[key] = shape;
+  args.shape = key;
+}
+
+if (!isBaseIconMode && !SHAPES[args.shape]) {
   console.error(`Error: Unknown shape "${args.shape}". Valid shapes: ${Object.keys(SHAPES).join(', ')}`);
   process.exit(1);
 }
@@ -373,18 +409,20 @@ if (!MODIFIERS[modifierKey]) {
 }
 
 // ── Resolve Colors ───────────────────────────────────────────────────
-const preset = findPreset(args.color);
-if (!preset && !(args['light-fill'] && args['light-stroke'] && args['dark-fill'] && args['dark-stroke'])) {
-  console.error(`Error: Unknown color preset "${args.color}". Use --list presets to see available presets, or provide all four --light-fill/--light-stroke/--dark-fill/--dark-stroke.`);
-  process.exit(1);
+let colors = {};
+if (!isBaseIconMode) {
+  const preset = findPreset(args.color);
+  if (!preset && !(args['light-fill'] && args['light-stroke'] && args['dark-fill'] && args['dark-stroke'])) {
+    console.error(`Error: Unknown color preset "${args.color}". Use --list presets to see available presets, or provide all four --light-fill/--light-stroke/--dark-fill/--dark-stroke.`);
+    process.exit(1);
+  }
+  colors = {
+    lightFill:   args['light-fill']   || preset?.lightFill,
+    lightStroke: args['light-stroke'] || preset?.lightStroke,
+    darkFill:    args['dark-fill']    || preset?.darkFill,
+    darkStroke:  args['dark-stroke']  || preset?.darkStroke,
+  };
 }
-
-const colors = {
-  lightFill:   args['light-fill']   || preset?.lightFill,
-  lightStroke: args['light-stroke'] || preset?.lightStroke,
-  darkFill:    args['dark-fill']    || preset?.darkFill,
-  darkStroke:  args['dark-stroke']  || preset?.darkStroke,
-};
 
 // ── Load Font ────────────────────────────────────────────────────────
 async function fetchFont(url) {
@@ -496,83 +534,113 @@ if (badgeSvgFiles.length > 0) {
 }
 
 // ── Generate ─────────────────────────────────────────────────────────
-const font = await loadFont();
-
-const commonParams = {
-  font,
-  letter: args.letter,
-  shape: args.shape,
-  strokeWidth: parseFloat(args['stroke-width']),
-  fontSize: args['font-size'] ? parseFloat(args['font-size']) : undefined,
-  xOffset: parseFloat(args['x-offset']),
-  yOffset: parseFloat(args['y-offset']),
-  shapeScale: args['shape-scale'] ? parseFloat(args['shape-scale']) : undefined,
-};
-
-const lightResult = generateSVG({
-  ...commonParams,
-  fill: colors.lightFill,
-  stroke: colors.lightStroke,
-  letterColor: colors.lightStroke,
-});
-
-const darkResult = generateSVG({
-  ...commonParams,
-  fill: colors.darkFill,
-  stroke: colors.darkStroke,
-  letterColor: colors.darkStroke,
-});
-
-for (const r of [lightResult, darkResult]) {
-  if (r.error) {
-    console.error(`Warning: ${r.error}`);
+if (isBaseIconMode) {
+  // ── Base Icon Mode ── no letter, no font, no recoloring ──
+  const baseIconSvg = await readFile(resolve(args['base-icon']), 'utf-8');
+  if (!baseIconSvg.includes('<svg')) {
+    console.error(`Error: --base-icon file "${args['base-icon']}" does not contain valid SVG markup.`);
+    process.exit(1);
   }
-}
 
-let rawLight = lightResult.svg;
-let rawDark = darkResult.svg;
+  let { svg: rawSvg, viewBoxSize } = generateBaseIconSVG(baseIconSvg);
 
-if (modifierKey !== 'none') {
-  const vbs = lightResult.viewBoxSize;
-  rawLight = applyModifier(rawLight, modifierKey, colors.lightStroke, vbs, badgeOpts);
-  rawDark = applyModifier(rawDark, modifierKey, colors.darkStroke, vbs, badgeOpts);
-}
-
-const lightSVG = optimizeSVG(rawLight);
-const darkSVG = optimizeSVG(rawDark);
-
-// ── Output ───────────────────────────────────────────────────────────
-const baseName = args.name || args.letter.toLowerCase();
-
-if (args.stdout) {
-  if (!args['dark-only']) {
-    console.log(`<!-- ${baseName}.svg (light) -->`);
-    console.log(lightSVG);
+  if (modifierKey !== 'none') {
+    rawSvg = applyModifier(rawSvg, modifierKey, '#000000', viewBoxSize, badgeOpts);
   }
-  if (!args['light-only']) {
-    if (!args['dark-only']) console.log();
-    console.log(`<!-- ${baseName}_dark.svg (dark) -->`);
-    console.log(darkSVG);
+
+  const finalSVG = optimizeSVG(rawSvg);
+  const baseName = args.name || args['base-icon'].replace(/^.*[/\\]/, '').replace(/\.svg$/i, '');
+
+  if (args.stdout) {
+    console.log(`<!-- ${baseName}.svg -->`);
+    console.log(finalSVG);
+  } else {
+    const outDir = resolve(args.out);
+    await mkdir(outDir, { recursive: true });
+    const outPath = join(outDir, `${baseName}.svg`);
+    await writeFile(outPath, finalSVG + '\n');
+    console.log(`Created: ${outPath}`);
   }
 } else {
-  const outDir = resolve(args.out);
-  await mkdir(outDir, { recursive: true });
+  // ── Letter Icon Mode (default) ──
+  const font = await loadFont();
 
-  const written = [];
+  const commonParams = {
+    font,
+    letter: args.letter,
+    shape: args.shape,
+    strokeWidth: parseFloat(args['stroke-width']),
+    fontSize: args['font-size'] ? parseFloat(args['font-size']) : undefined,
+    xOffset: parseFloat(args['x-offset']),
+    yOffset: parseFloat(args['y-offset']),
+    shapeScale: args['shape-scale'] ? parseFloat(args['shape-scale']) : undefined,
+  };
 
-  if (!args['dark-only']) {
-    const lightPath = join(outDir, `${baseName}.svg`);
-    await writeFile(lightPath, lightSVG + '\n');
-    written.push(lightPath);
+  const lightResult = generateSVG({
+    ...commonParams,
+    fill: colors.lightFill,
+    stroke: colors.lightStroke,
+    letterColor: colors.lightStroke,
+  });
+
+  const darkResult = generateSVG({
+    ...commonParams,
+    fill: colors.darkFill,
+    stroke: colors.darkStroke,
+    letterColor: colors.darkStroke,
+  });
+
+  for (const r of [lightResult, darkResult]) {
+    if (r.error) {
+      console.error(`Warning: ${r.error}`);
+    }
   }
 
-  if (!args['light-only']) {
-    const darkPath = join(outDir, `${baseName}_dark.svg`);
-    await writeFile(darkPath, darkSVG + '\n');
-    written.push(darkPath);
+  let rawLight = lightResult.svg;
+  let rawDark = darkResult.svg;
+
+  if (modifierKey !== 'none') {
+    const vbs = lightResult.viewBoxSize;
+    rawLight = applyModifier(rawLight, modifierKey, colors.lightStroke, vbs, badgeOpts);
+    rawDark = applyModifier(rawDark, modifierKey, colors.darkStroke, vbs, badgeOpts);
   }
 
-  for (const p of written) {
-    console.log(`Created: ${p}`);
+  const lightSVG = optimizeSVG(rawLight);
+  const darkSVG = optimizeSVG(rawDark);
+
+  // ── Output ───────────────────────────────────────────────────────────
+  const baseName = args.name || args.letter.toLowerCase();
+
+  if (args.stdout) {
+    if (!args['dark-only']) {
+      console.log(`<!-- ${baseName}.svg (light) -->`);
+      console.log(lightSVG);
+    }
+    if (!args['light-only']) {
+      if (!args['dark-only']) console.log();
+      console.log(`<!-- ${baseName}_dark.svg (dark) -->`);
+      console.log(darkSVG);
+    }
+  } else {
+    const outDir = resolve(args.out);
+    await mkdir(outDir, { recursive: true });
+
+    const written = [];
+
+    if (!args['dark-only']) {
+      const lightPath = join(outDir, `${baseName}.svg`);
+      await writeFile(lightPath, lightSVG + '\n');
+      written.push(lightPath);
+    }
+
+    if (!args['light-only']) {
+      const darkPath = join(outDir, `${baseName}_dark.svg`);
+      await writeFile(darkPath, darkSVG + '\n');
+      written.push(darkPath);
+    }
+
+    for (const p of written) {
+      console.log(`Created: ${p}`);
+    }
   }
 }

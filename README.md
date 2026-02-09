@@ -39,14 +39,19 @@ flowchart LR
 
 ## Features
 
-- 10 background shapes (6 from JetBrains expUI, 4 custom): circle, rounded rect, diamond, rounded diamond, shield, dashed circle, dashed rect, hexagon, document, composite
-- 9 color presets: blue, orange, purple, red, green, amber (JetBrains official), grey, teal, pink
-- Custom color overrides per theme variant
-- Font selection: Open Sans (default), Inter, Google Fonts, or local .ttf/.otf/.woff/.woff2 files
-- Optional badge overlay: import any SVG as a corner badge (drag-drop, paste, or file picker) with adjustable gap, position, and scale
-- Fine-tuning: font size, x/y offset, stroke width, shape scale
+- **Letter Icon mode** (default): letter-on-shape icon generation with light/dark theme variants
+  - 10 built-in background shapes (6 from JetBrains expUI, 4 custom): circle, rounded rect, diamond, rounded diamond, shield, dashed circle, dashed rect, hexagon, document, composite
+  - Import custom SVG shapes — geometry is re-colored to match the active preset
+  - 9 color presets: blue, orange, purple, red, green, amber (JetBrains official), grey, teal, pink
+  - Save custom color presets from the current light/dark color values
+  - Custom color overrides per theme variant
+  - Font selection: Open Sans (default), Inter, Google Fonts, or local .ttf/.otf/.woff/.woff2 files
+  - Fine-tuning: font size, x/y offset, stroke width, shape scale
+- **Badge Composer mode**: import a complete SVG icon (no letter, no recoloring) and apply badge cutouts/overlays — outputs a single file
+- Optional badge overlay: import one or more SVGs as corner badges (drag-drop, paste, or file picker) with per-badge gap, position, and scale
 - Optional SVGO optimization with file size display
-- CLI for scripting and batch generation (`--badge-svg` for badge overlay)
+- Imported shapes, icons, and saved presets persist across sessions via local storage
+- CLI for scripting and batch generation
 
 ## Usage
 
@@ -67,6 +72,12 @@ node cli.js -l E -s hexagon -c purple -n element -o ./icons/
 
 # Inter font, bold
 node cli.js -l R -s document -c blue --font inter --bold -o ./icons/
+
+# Custom imported shape as background
+node cli.js -l N --custom-shape my-shape.svg -c blue -o ./icons/
+
+# Badge composer — import icon + badge overlay
+node cli.js --base-icon logo.svg --badge-svg badge.svg -o ./icons/
 
 # Output to stdout
 node cli.js -l A -s shield -c green --stdout
@@ -98,12 +109,14 @@ Run `node cli.js text-to-svg --help` for all options.
 
 ## Output
 
-Each invocation produces two files:
+In letter icon mode, each invocation produces two files:
 
 - `<name>.svg` — light theme variant
 - `<name>_dark.svg` — dark theme variant
 
 The `_dark` suffix follows the IntelliJ convention for automatic theme-based icon resolution.
+
+In badge composer mode (`--base-icon`), a single file is produced: `<name>.svg`.
 
 ## Acknowledgments
 

@@ -213,6 +213,122 @@ export const SHAPES = {
   },
 };
 
+// ── Custom Shape Factory ─────────────────────────────────────────────
+let nextCustomShapeId = 1;
+
+/**
+ * Creates a SHAPES-compatible entry from imported SVG text.
+ * The shape's generate() function re-colors fills and strokes to match
+ * the active color preset, while preserving gradients and `none` values.
+ *
+ * @param {string} svgText - Raw SVG markup
+ * @param {string} [label='Custom'] - Display label for the shape grid
+ * @returns {{ key: string, shape: object }}
+ */
+export function createCustomShape(svgText, label = 'Custom') {
+  // Parse viewBox or width/height to get native dimensions
+  const vbMatch = svgText.match(/viewBox=["']([^"']+)["']/);
+  let vbW = 16, vbH = 16;
+  if (vbMatch) {
+    const parts = vbMatch[1].trim().split(/[\s,]+/).map(Number);
+    vbW = parts[2] || 16;
+    vbH = parts[3] || 16;
+  } else {
+    const wMatch = svgText.match(/width=["']([.\d]+)["']/);
+    const hMatch = svgText.match(/height=["']([.\d]+)["']/);
+    if (wMatch) vbW = parseFloat(wMatch[1]);
+    if (hMatch) vbH = parseFloat(hMatch[1]);
+  }
+
+  // Extract inner content between <svg> and </svg>
+  const innerMatch = svgText.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
+  const innerContent = innerMatch ? innerMatch[1].trim() : '';
+
+  const nativeSize = Math.max(vbW, vbH);
+  const id = nextCustomShapeId++;
+  const key = `custom-shape-${id}`;
+
+  const shape = {
+    official: false,
+    isCustom: true,
+    label: label.replace(/\.svg$/i, ''),
+    viewBoxSize: 16,
+    generate(fill, stroke, sw, c) {
+      // Scale and center the imported content to fit within 1px border
+      const usable = 2 * (c - 1) - sw;
+      const scale = usable / nativeSize;
+      const offsetX = c - (vbW * scale) / 2;
+      const offsetY = c - (vbH * scale) / 2;
+
+      // Re-color: replace fill/stroke values (not none/url)
+      let content = innerContent
+        .replace(/fill="(?!none|url)([^"]*)"/g, `fill="${fill}"`)
+        .replace(/stroke="(?!none|url)([^"]*)"/g, `stroke="${stroke}"`)
+        .replace(/stroke-width="[^"]*"/g, `stroke-width="${sw}"`);
+
+      return `<g transform="translate(${r(offsetX)} ${r(offsetY)}) scale(${r(scale)})">${content}</g>`;
+    },
+    preview: buildCustomPreview(innerContent, vbW, vbH),
+  };
+
+  return { key, shape };
+}
+
+function r(n) { return Math.round(n * 100) / 100; }
+
+function buildCustomPreview(innerContent, vbW, vbH) {
+  // Re-color to currentColor for theme-aware preview
+  const colored = innerContent
+    .replace(/fill="(?!none|url)([^"]*)"/g, 'fill="currentColor"')
+    .replace(/stroke="(?!none|url)([^"]*)"/g, 'stroke="currentColor"');
+  return `<svg viewBox="0 0 ${vbW} ${vbH}" width="16" height="16" xmlns="http://www.w3.org/2000/svg">${colored}</svg>`;
+}
+
+// ── Base Icon Normalization ──────────────────────────────────────────
+/**
+ * Normalizes an imported SVG icon for badge overlay (base icon mode).
+ * No letter, no font, no re-coloring — preserves original colors.
+ * Normalizes to a square viewBox, centering content if non-square.
+ *
+ * @param {string} svgText - Raw SVG markup
+ * @returns {{ svg: string, viewBoxSize: number }}
+ */
+export function generateBaseIconSVG(svgText) {
+  const vbMatch = svgText.match(/viewBox=["']([^"']+)["']/);
+  let vbX = 0, vbY = 0, vbW = 16, vbH = 16;
+  if (vbMatch) {
+    const parts = vbMatch[1].trim().split(/[\s,]+/).map(Number);
+    vbX = parts[0] || 0;
+    vbY = parts[1] || 0;
+    vbW = parts[2] || 16;
+    vbH = parts[3] || 16;
+  } else {
+    const wMatch = svgText.match(/width=["']([.\d]+)["']/);
+    const hMatch = svgText.match(/height=["']([.\d]+)["']/);
+    if (wMatch) vbW = parseFloat(wMatch[1]);
+    if (hMatch) vbH = parseFloat(hMatch[1]);
+  }
+
+  const viewBoxSize = Math.max(vbW, vbH);
+  const innerMatch = svgText.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
+  const innerContent = innerMatch ? innerMatch[1].trim() : '';
+
+  // Center content if non-square
+  const dx = (viewBoxSize - vbW) / 2 - vbX;
+  const dy = (viewBoxSize - vbH) / 2 - vbY;
+  const needsTranslate = dx !== 0 || dy !== 0;
+
+  const body = needsTranslate
+    ? `<g transform="translate(${r(dx)} ${r(dy)})">${innerContent}</g>`
+    : innerContent;
+
+  const svg = `<svg width="${viewBoxSize}" height="${viewBoxSize}" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" fill="none" xmlns="http://www.w3.org/2000/svg">
+  ${body}
+</svg>`;
+
+  return { svg, viewBoxSize };
+}
+
 // ── Modifier Definitions ─────────────────────────────────────────────
 // Corner modifiers that clip the bottom-right of the main shape and
 // render a small badge icon in the freed area.
