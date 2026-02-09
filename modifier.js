@@ -58,16 +58,25 @@ function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale, anc
   const fitScale = Math.min(targetSize / badgeW, targetSize / badgeH);
   const scale = fitScale * userScale;
 
-  // Anchor-based alignment: align badge's anchor point to viewBox's matching point
+  // Anchor-based alignment: anchor determines placement at base scale (userScale=1),
+  // then userScale grows/shrinks from the badge's center so position stays stable.
   const { ax, ay } = ANCHOR_POINTS[anchor] || ANCHOR_POINTS.br;
-  const scaledW = badgeW * scale;
-  const scaledH = badgeH * scale;
-  const vbAnchorX = ax * viewBoxSize;
-  const vbAnchorY = ay * viewBoxSize;
-  const badgeAnchorX = ax * scaledW;
-  const badgeAnchorY = ay * scaledH;
-  const tx = vbAnchorX - badgeAnchorX - minX * scale + xOff;
-  const ty = vbAnchorY - badgeAnchorY - minY * scale + yOff;
+
+  // Step 1: Compute base position (at fitScale, before userScale)
+  const baseScaledW = badgeW * fitScale;
+  const baseScaledH = badgeH * fitScale;
+  const baseTx = ax * viewBoxSize - ax * baseScaledW - minX * fitScale + xOff;
+  const baseTy = ay * viewBoxSize - ay * baseScaledH - minY * fitScale + yOff;
+
+  // Step 2: Badge center at base scale — this is the fixed reference point
+  const localCenterX = minX + badgeW / 2;
+  const localCenterY = minY + badgeH / 2;
+  const refCenterX = baseTx + localCenterX * fitScale;
+  const refCenterY = baseTy + localCenterY * fitScale;
+
+  // Step 3: Position so badge center stays at refCenter regardless of userScale
+  const tx = refCenterX - localCenterX * scale;
+  const ty = refCenterY - localCenterY * scale;
 
   // Extract inner content between <svg...> and </svg>
   const innerMatch = badgeSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
