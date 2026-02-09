@@ -17,10 +17,10 @@ export function parseFont(buffer) {
   return fontkitCreate(uint8);
 }
 
-// ── Text Path Helper (mimics opentype.js getPath) ────────────────────
+// ── Text Path Helper ─────────────────────────────────────────────────
 /**
- * Lays out text using fontkit and returns an object compatible with the
- * old opentype.js `font.getPath()` return value.
+ * Lays out text using fontkit and returns an object with `getBoundingBox()`
+ * and `toPathData()` methods for SVG rendering.
  *
  * @param {object} font - A fontkit Font object
  * @param {string} text - The text to render

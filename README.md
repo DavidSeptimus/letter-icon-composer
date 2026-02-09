@@ -18,7 +18,7 @@ IntelliJ plugin developers building custom language support who need icons consi
 
 ## How It Works
 
-1. [opentype.js](https://opentype.js.org) parses a font file and converts glyphs into SVG path data
+1. [fontkit](https://github.com/foliojs/fontkit) parses a font file and converts glyphs into SVG path data
 2. The letter path is composited onto the selected background shape with the appropriate theme colors
 3. If a badge SVG is provided, [Paper.js](http://paperjs.org) builds the badge silhouette — strokes are expanded into filled outlines via [paperjs-offset](https://github.com/glenzli/paperjs-offset) so the full visual extent is captured — then the silhouette is offset by a configurable gap and boolean-subtracted from each background shape; the badge is overlaid in the cleared area (clipPath fallback when Paper.js is unavailable)
 4. [SVGO](https://svgo.dev) optimizes the final SVG using the same configuration as the [Sketch SVGO Compressor plugin](https://www.sketchapp.com/extensions/plugins/svgo-compressor/), which is the [recommended method](https://plugins.jetbrains.com/docs/intellij/icons.html) for optimizing icons per the JetBrains platform guidelines
@@ -26,7 +26,7 @@ IntelliJ plugin developers building custom language support who need icons consi
 
 ```mermaid
 flowchart LR
-    A[Font File] --> B(opentype.js)
+    A[Font File] --> B(fontkit)
     B --> C[\SVG Path/]
     C --> D{Compose}
     D --> E{Badge?}
@@ -42,7 +42,7 @@ flowchart LR
 - 10 background shapes (6 from JetBrains expUI, 4 custom): circle, rounded rect, diamond, rounded diamond, shield, dashed circle, dashed rect, hexagon, document, composite
 - 9 color presets: blue, orange, purple, red, green, amber (JetBrains official), grey, teal, pink
 - Custom color overrides per theme variant
-- Font selection: Open Sans (default), Inter, Google Fonts, or local .ttf/.otf/.woff files
+- Font selection: Open Sans (default), Inter, Google Fonts, or local .ttf/.otf/.woff/.woff2 files
 - Optional badge overlay: import any SVG as a corner badge (drag-drop, paste, or file picker) with adjustable gap, position, and scale
 - Fine-tuning: font size, x/y offset, stroke width, shape scale
 - Optional SVGO optimization with file size display
@@ -107,7 +107,7 @@ The `_dark` suffix follows the IntelliJ convention for automatic theme-based ico
 
 ## Acknowledgments
 
-- [opentype.js](https://opentype.js.org) — font parsing and glyph-to-SVG conversion
+- [fontkit](https://github.com/foliojs/fontkit) — font parsing and glyph-to-SVG conversion
 - [Paper.js](http://paperjs.org) — boolean path operations for badge cutouts
 - [paperjs-offset](https://github.com/glenzli/paperjs-offset) — path offsetting and stroke expansion (the engine behind clean badge silhouette cuts)
 - [SVGO](https://svgo.dev) — SVG optimization
