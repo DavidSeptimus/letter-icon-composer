@@ -1532,11 +1532,17 @@ function drawPixelGrid(id) {
   const el = document.getElementById(id);
   if (!el) return;
   const s = lastViewBoxSize;
-  const sw = 1 / 8;
+  // Always overlay a 16-step grid representing the IntelliJ icon target pixel size.
+  // For larger viewBoxes (e.g. an imported 512-vb illustration), fall back to a
+  // 16-cell grid scaled across the viewBox rather than drawing one line per SVG unit.
+  const cells = Math.min(s, 32);
+  const step = s / cells;
+  const sw = step / 8;
   let lines = '';
-  for (let i = 1; i < s; i++) {
-    lines += `<line x1="${i}" y1="0" x2="${i}" y2="${s}"/>`;
-    lines += `<line x1="0" y1="${i}" x2="${s}" y2="${i}"/>`;
+  for (let i = 1; i < cells; i++) {
+    const v = i * step;
+    lines += `<line x1="${v}" y1="0" x2="${v}" y2="${s}"/>`;
+    lines += `<line x1="0" y1="${v}" x2="${s}" y2="${v}"/>`;
   }
   el.innerHTML = `<svg viewBox="0 0 ${s} ${s}" width="128" height="128" shape-rendering="crispEdges">` +
     `<g fill="none" stroke="rgba(200,200,200,0.25)" stroke-width="${sw}">${lines}</g></svg>`;
@@ -1836,8 +1842,9 @@ function updatePreviews() {
   setZoomedSvg('previewDarkZoomed', darkZoomed);
   drawPixelGrids();
 
-  // Sync checkerboard cell size with icon pixel size
-  const cellSize = (128 / lastViewBoxSize / 2) + 'px';
+  // Sync checkerboard cell size with icon pixel size. Cap the divisor so
+  // imported large-viewBox icons (e.g. 512×512) don't produce sub-pixel cells.
+  const cellSize = (128 / Math.min(lastViewBoxSize, 32) / 2) + 'px';
   document.querySelectorAll('.preview-zoomed').forEach(el => el.style.setProperty('--cell', cellSize));
 
   // Actual size previews

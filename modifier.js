@@ -516,8 +516,17 @@ async function createFullEngine(paper) {
         } else if (!isFillNone) {
           // Fill only, no stroke — subtract notch directly
           const fillResult = pp.subtract(notch);
+          const resultData = fillResult.pathData;
+          fillResult.remove();
+          // Empty path data indicates the boolean op either erased the shape
+          // entirely or failed silently (degenerate polygons / coincident
+          // vertices / self-intersections). Fall back to a clip-path wrapper
+          // so the original element is preserved and clipped by the cutout.
+          if (!resultData || !resultData.trim()) {
+            throw new Error('empty subtract result');
+          }
           fillEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-          fillEl.setAttribute('d', fillResult.pathData);
+          fillEl.setAttribute('d', resultData);
           for (const a of STYLE_ATTRS) {
             if (a === 'stroke' || a === 'stroke-width' || a.startsWith('stroke-')) continue;
             // Skip fill-rule/clip-rule — Paper.js boolean results use nonzero winding
@@ -525,7 +534,6 @@ async function createFullEngine(paper) {
             const v = el.getAttribute(a);
             if (v) fillEl.setAttribute(a, v);
           }
-          fillResult.remove();
         }
 
         // Replace original element with new fill/stroke paths.
