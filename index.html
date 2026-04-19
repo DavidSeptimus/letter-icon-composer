@@ -947,6 +947,11 @@
         </div>
         <input type="file" id="badgeFileInput" accept=".svg" style="display:none">
         <div class="badge-list" id="badgeList"></div>
+        <label class="toggle-row" style="margin-top:8px" title="Tighten each imported badge's viewBox to wrap its visible content, removing blank padding so anchor/scale/offset behave as expected.">
+          <span>Trim badge viewBox</span>
+          <input type="checkbox" id="badgeTrim" checked>
+          <span class="toggle-switch"></span>
+        </label>
         <label class="toggle-row" style="margin-top:8px" title="Render the cutout with a clip-path group instead of boolean path subtraction. Preserves the base icon's paths; use when subtraction corrupts an icon.">
           <span>Prefer clip-path</span>
           <input type="checkbox" id="badgePreferClipPath">
@@ -2593,6 +2598,22 @@ for (const [sliderId, valId, dec, prop] of [
   });
 }
 
+// "Trim badge viewBox" toggle (global, persisted) — re-derives svgText for all badges
+{
+  const cb = document.getElementById('badgeTrim');
+  const stored = localStorage.getItem('badge-trim');
+  cb.checked = stored === null ? true : stored === 'true';
+  cb.addEventListener('change', () => {
+    localStorage.setItem('badge-trim', cb.checked);
+    for (const b of badges) {
+      b.svgText = cb.checked ? trimBadgeViewBox(b.rawSvgText) : b.rawSvgText;
+    }
+    renderBadgeList();
+    drawSizeGuides();
+    render();
+  });
+}
+
 // "Prefer clip-path" toggle (per-session, persisted)
 {
   const cb = document.getElementById('badgePreferClipPath');
@@ -2641,9 +2662,11 @@ document.getElementById('resetModifierSliders').addEventListener('click', () => 
 // ── Badge List Management ─────────────────────────────────────────────
 function addBadge(svgText, name) {
   if (!svgText || !svgText.includes('<svg')) return;
+  const trim = document.getElementById('badgeTrim').checked;
   const badge = {
     id: nextBadgeId++,
-    svgText: trimBadgeViewBox(svgText),
+    rawSvgText: svgText,
+    svgText: trim ? trimBadgeViewBox(svgText) : svgText,
     name: name || 'custom.svg',
     anchor: 'br',
     xOff: 0, yOff: 0,

@@ -228,6 +228,7 @@ const { values: args } = parseArgs({
     'badge-scale':    { type: 'string', multiple: true },
     'badge-gap':      { type: 'string', multiple: true },
     'badge-anchor':   { type: 'string', multiple: true },
+    'badge-trim':     { type: 'string', multiple: true },
     'prefer-clip-path': { type: 'boolean', default: false },
     'custom-shape': { type: 'string' },
     'base-icon':    { type: 'string' },
@@ -293,6 +294,8 @@ Modifier:
   --badge-scale <n>        Per-badge scale factor (repeatable, default: 1.0)
   --badge-gap <n>          Per-badge gap around silhouette cutout (repeatable, default: 1)
   --badge-anchor <pos>     Per-badge anchor: tl, t, tr, l, c, r, bl, b, br (repeatable, default: br)
+  --badge-trim <bool>      Per-badge viewBox trim: true|false (repeatable, default: true).
+                           Tightens the badge's viewBox to its visible content.
   --prefer-clip-path       Render the cutout with a clip-path group instead of boolean path subtraction.
                            Preserves the base icon's paths; use when subtraction corrupts an icon.
 
@@ -518,6 +521,8 @@ if (badgeSvgFiles.length > 0) {
   const yOffsets = args['badge-y-offset'] || [];
   const scales = args['badge-scale'] || [];
   const gaps = args['badge-gap'] || [];
+  const trims = args['badge-trim'] || [];
+  const parseTrim = (v) => v === undefined ? true : !/^(false|0|no|off)$/i.test(v);
   badgeOpts = {
     preferClipPath: args['prefer-clip-path'],
     badges: await Promise.all(badgeSvgFiles.map(async (file, i) => {
@@ -527,7 +532,7 @@ if (badgeSvgFiles.length > 0) {
         process.exit(1);
       }
       return {
-        svgText: trimBadgeViewBox(svgText),
+        svgText: parseTrim(trims[i]) ? trimBadgeViewBox(svgText) : svgText,
         xOffset: parseFloat(xOffsets[i] ?? '0'),
         yOffset: parseFloat(yOffsets[i] ?? '0'),
         scale: parseFloat(scales[i] ?? '1'),
