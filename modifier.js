@@ -534,6 +534,43 @@ async function createFullEngine(paper) {
     return new XMLSerializer_().serializeToString(svgEl);
   }
 
+  /**
+   * "Prefer clip-path" mode. Still uses Paper.js to compute the silhouette-shaped
+   * cutout (with gap expansion), but avoids per-path boolean subtraction on the
+   * base icon — instead wrapping the entire icon in a <g clip-path="..."> group.
+   * Use when boolean subtraction corrupts a specific icon's paths.
+   */
+  function applySingleBadgeClipPathPreferred(svgString, viewBoxSize, badge, index) {
+    paperScope.activate();
+    const s = viewBoxSize;
+
+    const placement = computeBadgePlacement(
+      badge.svgText, viewBoxSize,
+      badge.xOffset || 0, badge.yOffset || 0, badge.scale ?? 1.0,
+      badge.anchor || 'br');
+
+    if (!placement.inner) return svgString;
+
+    const gap = badge.gap ?? 1;
+    const notch = importBadgeSilhouette(
+      badge.svgText, placement.tx, placement.ty, placement.scale, gap);
+    if (!notch) return svgString;
+
+    const viewBoxRect = new paper.Path.Rectangle(new paper.Rectangle(0, 0, s, s));
+    const keepRegion = viewBoxRect.subtract(notch);
+    const keepPathData = keepRegion.pathData;
+    viewBoxRect.remove();
+    keepRegion.remove();
+    notch.remove();
+
+    const clipId = `nc-${index}`;
+    const clipDef = `<defs><clipPath id="${clipId}"><path d="${keepPathData}"/></clipPath></defs>`;
+    const badgeMarkup = `<g data-badge-layer="${index}" transform="translate(${+placement.tx.toFixed(3)} ${+placement.ty.toFixed(3)}) scale(${+placement.scale.toFixed(4)})">${placement.inner}</g>`;
+
+    return svgString.replace(/(<svg[^>]*>)([\s\S]*)(<\/svg>)/, (_, open, body, close) =>
+      `${open}${clipDef}<g clip-path="url(#${clipId})">${body}</g>${badgeMarkup}${close}`);
+  }
+
   function applyModifier(svgString, modifierKey, modifierColor, viewBoxSize, opts) {
     if (!modifierKey || modifierKey === 'none') return svgString;
     const modDef = MODIFIERS[modifierKey];
@@ -542,9 +579,12 @@ async function createFullEngine(paper) {
     const badges = normalizeBadges(opts);
     if (badges.length === 0) return svgString;
 
+    const preferClipPath = opts && opts.preferClipPath;
     let result = svgString;
     for (let i = 0; i < badges.length; i++) {
-      result = applySingleBadgePaper(result, viewBoxSize, badges[i], i);
+      result = preferClipPath
+        ? applySingleBadgeClipPathPreferred(result, viewBoxSize, badges[i], i)
+        : applySingleBadgePaper(result, viewBoxSize, badges[i], i);
     }
     return result;
   }

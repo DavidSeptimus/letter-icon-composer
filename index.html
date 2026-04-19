@@ -947,6 +947,11 @@
         </div>
         <input type="file" id="badgeFileInput" accept=".svg" style="display:none">
         <div class="badge-list" id="badgeList"></div>
+        <label class="toggle-row" style="margin-top:8px" title="Render the cutout with a clip-path group instead of boolean path subtraction. Preserves the base icon's paths; use when subtraction corrupts an icon.">
+          <span>Prefer clip-path</span>
+          <input type="checkbox" id="badgePreferClipPath">
+          <span class="toggle-switch"></span>
+        </label>
         <div id="badgeTuning" style="display:none">
           <div style="display:flex;justify-content:space-between;align-items:start;margin-top:6px">
             <div>
@@ -1057,16 +1062,17 @@
       </div>
     </div>
 
-    <div class="btn-row" style="padding: 8px 0;">
+    <div class="btn-row" id="downloadBothRow" style="padding: 8px 0;">
       <button class="btn" id="downloadBoth">Download Both (Light + Dark)</button>
     </div>
 
     <div class="code-panel">
       <div class="code-header">
-        <div class="code-tabs">
+        <div class="code-tabs" id="codeTabs">
           <button class="code-tab active" data-tab="light" id="tabLight">Light SVG</button>
           <button class="code-tab" data-tab="dark" id="tabDark">Dark SVG</button>
         </div>
+        <span id="codeTitle" style="display:none;font-size:13px;font-weight:600;color:var(--text)">SVG Source</span>
         <span class="file-size" id="fileSize"></span>
       </div>
       <div class="code-block" id="codeBlock" onclick="window.getSelection().selectAllChildren(this)"></div>
@@ -1775,6 +1781,7 @@ function renderLetterIcon() {
         xOffset: b.xOff, yOffset: b.yOff,
         scale: b.scale, gap: b.gap, anchor: b.anchor,
       })),
+      preferClipPath: document.getElementById('badgePreferClipPath').checked,
     };
     rawLight = applyModifier(rawLight, 'custom', lightStroke, lastViewBoxSize, opts);
     rawDark = applyModifier(rawDark, 'custom', darkStroke, lastViewBoxSize, opts);
@@ -1804,6 +1811,7 @@ function renderBaseIcon() {
         xOffset: b.xOff, yOffset: b.yOff,
         scale: b.scale, gap: b.gap, anchor: b.anchor,
       })),
+      preferClipPath: document.getElementById('badgePreferClipPath').checked,
     };
     rawSvg = applyModifier(rawSvg, 'custom', '#000000', viewBoxSize, opts);
   }
@@ -2585,6 +2593,16 @@ for (const [sliderId, valId, dec, prop] of [
   });
 }
 
+// "Prefer clip-path" toggle (per-session, persisted)
+{
+  const cb = document.getElementById('badgePreferClipPath');
+  cb.checked = localStorage.getItem('badge-prefer-clip-path') === 'true';
+  cb.addEventListener('change', () => {
+    localStorage.setItem('badge-prefer-clip-path', cb.checked);
+    render();
+  });
+}
+
 // ── Anchor Grid ───────────────────────────────────────────────────────
 {
   const grid = document.getElementById('anchorGrid');
@@ -2821,13 +2839,12 @@ function switchMode(mode) {
   lightCard.classList.toggle('preview-neutral', isBase);
   document.querySelector('.preview-row').style.gridTemplateColumns = isBase ? '1fr' : '1fr 1fr';
 
-  // Buttons: change "Download Both" text
-  const downloadBothBtn = document.getElementById('downloadBoth');
-  downloadBothBtn.textContent = isBase ? 'Download SVG' : 'Download Both (Light + Dark)';
+  // Buttons: hide redundant bottom download row in badge composer (per-card Download stays)
+  document.getElementById('downloadBothRow').style.display = isBase ? 'none' : '';
 
-  // Code tabs: hide dark tab in base icon mode
-  document.getElementById('tabDark').style.display = isBase ? 'none' : '';
-  document.getElementById('tabLight').textContent = isBase ? 'SVG' : 'Light SVG';
+  // Code tabs → plain "SVG Source" title in base icon mode
+  document.getElementById('codeTabs').style.display = isBase ? 'none' : '';
+  document.getElementById('codeTitle').style.display = isBase ? '' : 'none';
   if (isBase) switchTab('light');
 
   // File name hint

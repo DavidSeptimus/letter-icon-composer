@@ -228,6 +228,7 @@ const { values: args } = parseArgs({
     'badge-scale':    { type: 'string', multiple: true },
     'badge-gap':      { type: 'string', multiple: true },
     'badge-anchor':   { type: 'string', multiple: true },
+    'prefer-clip-path': { type: 'boolean', default: false },
     'custom-shape': { type: 'string' },
     'base-icon':    { type: 'string' },
     name:        { type: 'string',  short: 'n' },
@@ -292,6 +293,8 @@ Modifier:
   --badge-scale <n>        Per-badge scale factor (repeatable, default: 1.0)
   --badge-gap <n>          Per-badge gap around silhouette cutout (repeatable, default: 1)
   --badge-anchor <pos>     Per-badge anchor: tl, t, tr, l, c, r, bl, b, br (repeatable, default: br)
+  --prefer-clip-path       Render the cutout with a clip-path group instead of boolean path subtraction.
+                           Preserves the base icon's paths; use when subtraction corrupts an icon.
 
 Output:
   -n, --name <name>        Base file name (default: derived from letter)
@@ -515,6 +518,7 @@ if (badgeSvgFiles.length > 0) {
   const scales = args['badge-scale'] || [];
   const gaps = args['badge-gap'] || [];
   badgeOpts = {
+    preferClipPath: args['prefer-clip-path'],
     badges: await Promise.all(badgeSvgFiles.map(async (file, i) => {
       const svgText = await readFile(resolve(file), 'utf-8');
       if (!svgText.includes('<svg')) {
