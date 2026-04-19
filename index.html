@@ -1374,7 +1374,7 @@ function optimizeSVG(svgString) {
 }
 
 // ── Paper.js Modifier Engine ──────────────────────────────────────────
-const { applyModifier } = await createModifierEngine(
+const { applyModifier, trimBadgeViewBox } = await createModifierEngine(
   typeof paper !== 'undefined' ? paper : null);
 
 // ── Error Reporting ───────────────────────────────────────────────────
@@ -2643,7 +2643,7 @@ function addBadge(svgText, name) {
   if (!svgText || !svgText.includes('<svg')) return;
   const badge = {
     id: nextBadgeId++,
-    svgText,
+    svgText: trimBadgeViewBox(svgText),
     name: name || 'custom.svg',
     anchor: 'br',
     xOff: 0, yOff: 0,

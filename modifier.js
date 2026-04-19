@@ -337,6 +337,26 @@ async function createFullEngine(paper) {
     return united;
   }
 
+  /**
+   * Rewrites a badge SVG's viewBox to tightly wrap its visible content.
+   * Removes blank padding so anchor/scale/offset behave naturally on icons
+   * that don't fill their original viewBox. Returns the original string
+   * unchanged when the silhouette can't be measured.
+   */
+  function trimBadgeViewBox(svgText) {
+    paperScope.activate();
+    const united = importBadgeSilhouette(svgText, 0, 0, 1, 0);
+    if (!united) return svgText;
+    const b = united.bounds;
+    united.remove();
+    if (!isFinite(b.x) || !isFinite(b.y) || b.width <= 0 || b.height <= 0) return svgText;
+    const newViewBox = `${+b.x.toFixed(3)} ${+b.y.toFixed(3)} ${+b.width.toFixed(3)} ${+b.height.toFixed(3)}`;
+    if (/viewBox\s*=\s*["'][^"']*["']/i.test(svgText)) {
+      return svgText.replace(/viewBox\s*=\s*["'][^"']*["']/i, `viewBox="${newViewBox}"`);
+    }
+    return svgText.replace(/<svg\b/i, `<svg viewBox="${newViewBox}"`);
+  }
+
   const STYLE_ATTRS = ['fill', 'stroke', 'stroke-width', 'fill-rule', 'clip-rule',
     'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'opacity'];
 
@@ -589,14 +609,15 @@ async function createFullEngine(paper) {
     return result;
   }
 
-  return { applyModifier };
+  return { applyModifier, trimBadgeViewBox };
 }
 
 // ── Engine Factory ───────────────────────────────────────────────────
 
 export async function createModifierEngine(paper) {
   if (paper) return createFullEngine(paper);
-  return { applyModifier: applyModifierClipPath };
+  // Without Paper.js we can't measure the silhouette — pass badges through unchanged.
+  return { applyModifier: applyModifierClipPath, trimBadgeViewBox: (svg) => svg };
 }
 
 // ── Exported for UI guide computation ────────────────────────────────

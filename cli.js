@@ -499,6 +499,7 @@ function optimizeSVG(svgString) {
 
 // ── Modifier Engine ──────────────────────────────────────────────────
 let applyModifier = (svg) => svg;
+let trimBadgeViewBox = (svg) => svg;
 if (modifierKey !== 'none') {
   let paper = null;
   try {
@@ -507,7 +508,7 @@ if (modifierKey !== 'none') {
     console.error('\x1b[33m\u26A0\uFE0F  paper-jsdom not found — using clipPath fallback (no path subtraction)\x1b[0m');
     console.error('\x1b[33m   For cleaner output, install: \x1b[1mnpm install paper-jsdom canvas jsdom\x1b[0m\n');
   }
-  ({ applyModifier } = await createModifierEngine(paper));
+  ({ applyModifier, trimBadgeViewBox } = await createModifierEngine(paper));
 }
 
 // Load custom badge SVG(s)
@@ -526,7 +527,7 @@ if (badgeSvgFiles.length > 0) {
         process.exit(1);
       }
       return {
-        svgText,
+        svgText: trimBadgeViewBox(svgText),
         xOffset: parseFloat(xOffsets[i] ?? '0'),
         yOffset: parseFloat(yOffsets[i] ?? '0'),
         scale: parseFloat(scales[i] ?? '1'),
