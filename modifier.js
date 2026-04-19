@@ -293,7 +293,10 @@ async function createFullEngine(paper) {
       if (!p) return;
       if (parentTransform) applyPaperTransform(p, parentTransform);
 
-      const sw = parseFloat(el.getAttribute('stroke-width')) || 0;
+      // SVG default stroke-width is 1 — when stroke is set without an explicit
+      // width, treat as 1 so the silhouette includes the visible stroke extent.
+      const swAttr = el.getAttribute('stroke-width');
+      const sw = swAttr !== null ? parseFloat(swAttr) : 1;
       const hasStroke = stroke && stroke !== 'none' && sw > 0;
       const isFillNone = fill === 'none';
 
