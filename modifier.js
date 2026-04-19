@@ -75,8 +75,14 @@ function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale, anc
   const refCenterY = baseTy + localCenterY * fitScale;
 
   // Step 3: Position so badge center stays at refCenter regardless of userScale
-  const tx = refCenterX - localCenterX * scale;
-  const ty = refCenterY - localCenterY * scale;
+  let tx = refCenterX - localCenterX * scale;
+  let ty = refCenterY - localCenterY * scale;
+
+  // Step 4: Clamp so the scaled badge stays within the viewBox
+  const scaledW = badgeW * scale;
+  const scaledH = badgeH * scale;
+  tx = Math.max(0, Math.min(tx, viewBoxSize - scaledW));
+  ty = Math.max(0, Math.min(ty, viewBoxSize - scaledH));
 
   // Extract inner content between <svg...> and </svg>
   const innerMatch = badgeSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
@@ -420,6 +426,28 @@ async function createFullEngine(paper) {
       if (!pp) return;
       if (parentTransform) applyPaperTransform(pp, parentTransform);
 
+      // Fast bounds check: expand path bounds by stroke extent and test against
+      // the notch bounds. If there is no overlap the element cannot intersect
+      // the badge cutout, so we can skip the expensive boolean subtraction and
+      // preserve the original SVG element (including its stroke) untouched.
+      const visualBounds = hasStroke ? pp.strokeBounds.expand(strokeWidth) : pp.bounds;
+      if (!visualBounds.intersects(notch.bounds)) {
+        // Element does not overlap the badge notch — keep it as-is.
+        // If the element was inside a <g> with a transform we need to
+        // hoist the transform onto the element and remove the empty <g>.
+        if (parentTransform) {
+          const existing = el.getAttribute('transform');
+          el.setAttribute('transform', existing ? `${parentTransform} ${existing}` : parentTransform);
+        }
+        const parent_ = el.parentNode;
+        if (parent_.tagName?.toLowerCase() === 'g' && parent_.children.length === 1) {
+          parent_.parentNode.insertBefore(el, parent_);
+          parent_.remove();
+        }
+        pp.remove();
+        return;
+      }
+
       const parent = el.parentNode;
       const insertionPoint = parent.tagName?.toLowerCase() === 'g' ? parent : null;
 
@@ -428,36 +456,28 @@ async function createFullEngine(paper) {
         let strokeEl = null;
 
         if (hasStroke) {
-          // Expand stroke into a filled outline using PaperOffset.offsetStroke,
-          // then subtract the notch from it. Works for all path types.
-          const joinStyle = el.getAttribute('stroke-linejoin') === 'round' ? 'round' : 'miter';
-          const capStyle = el.getAttribute('stroke-linecap') === 'round' ? 'round' : 'butt';
-          const strokeOutline = PaperOffset.offsetStroke(pp, strokeWidth / 2, {
-            join: joinStyle, cap: capStyle, insert: false
-          });
-
-          if (strokeOutline) {
-            if (!isFillNone) {
-              const fillResult = pp.subtract(notch);
-              fillEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-              fillEl.setAttribute('d', fillResult.pathData);
-              for (const a of STYLE_ATTRS) {
-                if (a === 'stroke' || a === 'stroke-width' || a.startsWith('stroke-')) continue;
-                // Skip fill-rule/clip-rule — Paper.js boolean results use nonzero winding
-                if (a === 'fill-rule' || a === 'clip-rule') continue;
-                const v = el.getAttribute(a);
-                if (v) fillEl.setAttribute(a, v);
-              }
-              fillResult.remove();
-            }
-
-            const ringResult = strokeOutline.subtract(notch);
-            strokeEl = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-            strokeEl.setAttribute('d', ringResult.pathData);
-            strokeEl.setAttribute('fill', strokeColor);
-            ringResult.remove();
-            strokeOutline.remove();
+          // Stroked path overlaps the badge notch. Wrap in a clipped group
+          // to cut away the badge area while preserving native stroke rendering.
+          // Expanding strokes into filled outlines via PaperOffset would lose
+          // line caps, joins, dash patterns, and transform-dependent stroke width.
+          // The clip-path must live on a wrapper <g> in root coordinate space,
+          // NOT on the element itself (whose transform would shift the clip coords).
+          ensureClipDef();
+          if (parentTransform) {
+            const existing = el.getAttribute('transform');
+            el.setAttribute('transform', existing ? `${parentTransform} ${existing}` : parentTransform);
           }
+          const wrapper = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+          wrapper.setAttribute('clip-path', `url(#${clipId})`);
+          if (insertionPoint) {
+            insertionPoint.parentNode.insertBefore(wrapper, insertionPoint);
+            if (insertionPoint.children.length === 0) insertionPoint.remove();
+          } else {
+            parent.insertBefore(wrapper, el);
+          }
+          wrapper.appendChild(el);
+          pp.remove();
+          return;
         } else if (!isFillNone) {
           // Fill only, no stroke — subtract notch directly
           const fillResult = pp.subtract(notch);
