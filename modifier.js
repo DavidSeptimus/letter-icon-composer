@@ -78,11 +78,16 @@ function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale, anc
   let tx = refCenterX - localCenterX * scale;
   let ty = refCenterY - localCenterY * scale;
 
-  // Step 4: Clamp so the scaled badge stays within the viewBox
+  // Step 4: Clamp so the scaled badge's *visible content* stays within the viewBox.
+  // The visible left/top edges are at tx + minX*scale (not tx); accounting for
+  // minX/minY matters for SVGs whose viewBox has a non-zero origin (e.g.
+  // Material Symbols' "0 -960 960 960").
   const scaledW = badgeW * scale;
   const scaledH = badgeH * scale;
-  tx = Math.max(0, Math.min(tx, viewBoxSize - scaledW));
-  ty = Math.max(0, Math.min(ty, viewBoxSize - scaledH));
+  const minTx = -minX * scale;
+  const minTy = -minY * scale;
+  tx = Math.max(minTx, Math.min(tx, minTx + viewBoxSize - scaledW));
+  ty = Math.max(minTy, Math.min(ty, minTy + viewBoxSize - scaledH));
 
   // Extract inner content between <svg...> and </svg>
   const innerMatch = badgeSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
@@ -225,6 +230,13 @@ async function createFullEngine(paper) {
         p = new paper.CompoundPath(d);
       } else {
         p = new paper.Path(d);
+        // Auto-close paths that visually loop back but lack an explicit Z.
+        // PaperOffset.offset only produces a clean outward expansion on closed
+        // paths — without this, the silhouette gap is missing on one side.
+        if (!p.closed && p.segments.length > 1
+            && p.firstSegment.point.getDistance(p.lastSegment.point) < 1e-6) {
+          p.closed = true;
+        }
       }
     } else if (tag === 'ellipse') {
       const cx = +el.getAttribute('cx'), cy = +el.getAttribute('cy');
