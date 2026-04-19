@@ -14,7 +14,7 @@
   "dependencies": {
     "fontkit": "^2.0.4",
     "paperjs-offset": "^1.0.8",
-    "svgo": "^4.0.0"
+    "svgo": "4.0.1"
   },
   "optionalDependencies": {
     "canvas": "^3.2.1",
