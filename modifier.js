@@ -89,9 +89,25 @@ function computeBadgePlacement(badgeSvg, viewBoxSize, xOff, yOff, userScale, anc
   tx = Math.max(minTx, Math.min(tx, minTx + viewBoxSize - scaledW));
   ty = Math.max(minTy, Math.min(ty, minTy + viewBoxSize - scaledH));
 
-  // Extract inner content between <svg...> and </svg>
+  // Extract inner content between <svg...> and </svg>, preserving any
+  // presentation attributes from the outer <svg> that the inner elements
+  // would normally inherit (e.g. badges that set fill on the root svg and
+  // leave children unstyled). Without this the badge overlay would render
+  // with default fill/stroke and lose its color.
+  const svgTagMatch = badgeSvg.match(/<svg([^>]*)>/i);
   const innerMatch = badgeSvg.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
-  const inner = innerMatch ? innerMatch[1].trim() : '';
+  let inner = innerMatch ? innerMatch[1].trim() : '';
+  if (inner && svgTagMatch) {
+    const PRESENTATION = ['fill', 'stroke', 'fill-rule', 'clip-rule',
+      'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray',
+      'opacity', 'fill-opacity', 'stroke-opacity'];
+    let inherited = '';
+    for (const attr of PRESENTATION) {
+      const m = svgTagMatch[1].match(new RegExp(`\\b${attr}\\s*=\\s*"([^"]*)"`, 'i'));
+      if (m) inherited += ` ${attr}="${m[1]}"`;
+    }
+    if (inherited) inner = `<g${inherited}>${inner}</g>`;
+  }
 
   return { tx, ty, scale, inner, minX, minY, badgeW, badgeH };
 }
