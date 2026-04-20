@@ -961,7 +961,7 @@
         <div id="badgeDropZone" class="badge-drop-zone" tabindex="0">
           Drop, paste, or <a href="#" id="badgeBrowseLink" style="color:var(--accent);text-decoration:none">browse</a> an SVG file
         </div>
-        <input type="file" id="badgeFileInput" accept=".svg" style="display:none">
+        <input type="file" id="badgeFileInput" accept=".svg" multiple style="display:none">
         <div class="badge-list" id="badgeList"></div>
         <label class="toggle-row" style="margin-top:8px" title="Tighten each imported badge's viewBox to wrap its visible content, removing blank padding so anchor/scale/offset behave as expected.">
           <span>Trim badge viewBox</span>
@@ -2889,12 +2889,18 @@ document.getElementById('badgeBrowseLink').addEventListener('click', e => {
   document.getElementById('badgeFileInput').click();
 });
 
+// Read each SVG file as text and add it as a badge, in the order received.
+function addBadgeFiles(files) {
+  for (const file of files) {
+    if (!file.name?.endsWith('.svg') && file.type !== 'image/svg+xml') continue;
+    const reader = new FileReader();
+    reader.onload = evt => addBadge(evt.target.result, file.name || 'pasted.svg');
+    reader.readAsText(file);
+  }
+}
+
 document.getElementById('badgeFileInput').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = evt => addBadge(evt.target.result, file.name);
-  reader.readAsText(file);
+  addBadgeFiles(e.target.files);
   e.target.value = '';
 });
 
@@ -2904,25 +2910,15 @@ badgeDropZone.addEventListener('dragleave', () => badgeDropZone.classList.remove
 badgeDropZone.addEventListener('drop', e => {
   e.preventDefault();
   badgeDropZone.classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if (!file || !file.name.endsWith('.svg')) return;
-  const reader = new FileReader();
-  reader.onload = evt => addBadge(evt.target.result, file.name);
-  reader.readAsText(file);
+  addBadgeFiles(e.dataTransfer.files);
 });
 
 badgeDropZone.addEventListener('paste', e => {
-  // Check for pasted files first (e.g. copied file from file manager)
-  const files = e.clipboardData.files;
-  if (files.length > 0) {
-    const file = files[0];
-    if (file.type === 'image/svg+xml' || file.name?.endsWith('.svg')) {
-      e.preventDefault();
-      const reader = new FileReader();
-      reader.onload = evt => addBadge(evt.target.result, file.name || 'pasted.svg');
-      reader.readAsText(file);
-      return;
-    }
+  // Pasted files (e.g. copied from file manager) — handle multiple
+  if (e.clipboardData.files.length > 0) {
+    e.preventDefault();
+    addBadgeFiles(e.clipboardData.files);
+    return;
   }
   // Fall back to pasted SVG text
   const text = e.clipboardData.getData('text');
