@@ -1359,6 +1359,7 @@ let svgoEnabled = localStorage.getItem('svgo-enabled') !== 'false';
 let currentMode = 'letter'; // 'letter' | 'base-icon'
 let baseIconSvg = null;
 let baseIconName = 'icon';
+let userEditedFileName = false; // true once the user types into #fileName; suspends auto-derivation
 // Either 'original' (use the imported icon's native size) or a numeric pixel target
 let targetSize = localStorage.getItem('badge-target-size') || 'original';
 let customShapes = [];       // Array of { key, shape, label, svgText }
@@ -2646,6 +2647,12 @@ for (const [sliderId, valId, dec, prop] of [
   });
 }
 
+// File name input — once the user types in it, suspend auto-derivation so
+// adding/removing badges or reimporting an icon won't clobber their choice.
+document.getElementById('fileName').addEventListener('input', () => {
+  userEditedFileName = true;
+});
+
 // Target size selector (badge mode only — drives grid, checkerboard,
 // actual-size preview, and the output's width/height attributes)
 {
@@ -2735,6 +2742,7 @@ function addBadge(svgText, name) {
   badges.push(badge);
   selectBadge(badge.id);
   renderBadgeList();
+  updateAutoFileName();
   render();
 }
 
@@ -2745,7 +2753,17 @@ function removeBadge(id) {
   }
   loadTuningFromBadge(badges.find(b => b.id === selectedBadgeId));
   renderBadgeList();
+  updateAutoFileName();
   render();
+}
+
+// In badge composer mode, auto-suffix "_badged" when at least one badge is
+// applied so the user's download doesn't overwrite the unbadged source. Only
+// runs while the user hasn't manually typed into the field.
+function updateAutoFileName() {
+  if (currentMode !== 'base-icon' || userEditedFileName) return;
+  const suffix = badges.length > 0 ? '_badged' : '';
+  document.getElementById('fileName').value = baseIconName + suffix;
 }
 
 function selectBadge(id) {
@@ -3037,7 +3055,9 @@ function setBaseIcon(svgText, fileName, skipRender) {
   if (!svgText || !svgText.includes('<svg')) return;
   baseIconSvg = svgText;
   baseIconName = (fileName || 'icon').replace(/\.svg$/i, '');
-  document.getElementById('fileName').value = baseIconName;
+  // New icon imported — return to auto-derived naming (incl. _badged suffix)
+  userEditedFileName = false;
+  document.getElementById('fileName').value = baseIconName + (badges.length > 0 ? '_badged' : '');
 
   // Show thumbnail in drop zone
   const zone = document.getElementById('baseIconDropZone');

@@ -573,7 +573,9 @@ if (isBaseIconMode) {
     finalSVG = finalSVG.replace(/width="\d+(?:\.\d+)?"\s+height="\d+(?:\.\d+)?"/,
       `width="${t}" height="${t}"`);
   }
-  const baseName = args.name || args['base-icon'].replace(/^.*[/\\]/, '').replace(/\.svg$/i, '');
+  const baseName = args.name
+    || args['base-icon'].replace(/^.*[/\\]/, '').replace(/\.svg$/i, '')
+        + (badgeSvgFiles.length > 0 ? '_badged' : '');
 
   if (args.stdout) {
     console.log(`<!-- ${baseName}.svg -->`);
