@@ -3059,9 +3059,13 @@ function setBaseIcon(svgText, fileName, skipRender) {
   userEditedFileName = false;
   document.getElementById('fileName').value = baseIconName + (badges.length > 0 ? '_badged' : '');
 
-  // Show thumbnail in drop zone
+  // Show thumbnail in drop zone — strip any existing width/height (might be
+  // absent on viewBox-only SVGs) then inject 48×48 so the thumb sizes correctly.
   const zone = document.getElementById('baseIconDropZone');
-  const thumbSvg = svgText.replace(/width=["'][^"']*["']/i, 'width="48"').replace(/height=["'][^"']*["']/i, 'height="48"');
+  const thumbSvg = svgText
+    .replace(/\s+width=["'][^"']*["']/i, '')
+    .replace(/\s+height=["'][^"']*["']/i, '')
+    .replace(/<svg\b/i, '<svg width="48" height="48"');
   const displayName = fileName || 'icon.svg';
   zone.innerHTML = `<div class="base-icon-thumb">${thumbSvg}</div>` +
     `<span class="base-icon-name" title="${displayName.replace(/"/g, '&quot;')}">${displayName}</span>` +
