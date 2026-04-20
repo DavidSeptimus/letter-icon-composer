@@ -20,7 +20,7 @@ IntelliJ plugin developers building custom language support who need icons consi
 
 1. [fontkit](https://github.com/foliojs/fontkit) parses a font file and converts glyphs into SVG path data
 2. The letter path is composited onto the selected background shape with the appropriate theme colors
-3. If a badge SVG is provided, [Paper.js](http://paperjs.org) builds the badge silhouette — strokes are expanded into filled outlines via [paperjs-offset](https://github.com/glenzli/paperjs-offset) so the full visual extent is captured — then the silhouette is offset by a configurable gap and boolean-subtracted from each background shape; the badge is overlaid in the cleared area (clipPath fallback when Paper.js is unavailable)
+3. If a badge SVG is provided, its viewBox is trimmed to the visible silhouette on import (so anchor/scale/offset behave naturally even on icons with blank padding). [Paper.js](http://paperjs.org) builds the badge silhouette — strokes are expanded into filled outlines via [paperjs-offset](https://github.com/glenzli/paperjs-offset) so the full visual extent is captured — then the silhouette is offset by a configurable gap and boolean-subtracted from each background shape; the badge is overlaid in the cleared area. A "prefer clip-path" mode swaps boolean subtraction for a clip-path wrapper when path subtraction corrupts a specific icon (e.g. due to degenerate polygons), and a clipPath fallback handles environments without Paper.js
 4. [SVGO](https://svgo.dev) optimizes the final SVG using the same configuration as the [Sketch SVGO Compressor plugin](https://www.sketchapp.com/extensions/plugins/svgo-compressor/), which is the [recommended method](https://plugins.jetbrains.com/docs/intellij/icons.html) for optimizing icons per the JetBrains platform guidelines
 5. Light and dark theme variants are produced together
 
@@ -47,8 +47,8 @@ flowchart LR
   - Custom color overrides per theme variant
   - Font selection: Open Sans (default), Inter, Google Fonts, or local .ttf/.otf/.woff/.woff2 files
   - Fine-tuning: font size, x/y offset, stroke width, shape scale
-- **Badge Composer mode**: import a complete SVG icon (no letter, no recoloring) and apply badge cutouts/overlays — outputs a single file
-- Optional badge overlay: import one or more SVGs as corner badges (drag-drop, paste, or file picker) with per-badge gap, position, and scale
+- **Badge Composer mode**: import a complete SVG icon (no letter, no recoloring) and apply badge cutouts/overlays — outputs a single file. Includes a target-size selector (12–48 px) that rewrites the output's `width`/`height` for common IDE icon sizes; viewBox is preserved
+- Optional badge overlay: import one or more SVGs as corner badges (drag-drop, paste, or file picker) with per-badge anchor (9 positions: corners, edges, center), gap, position, and scale. Auto-trims badge viewBoxes on import (toggleable); offers a "prefer clip-path" escape hatch for icons that boolean subtraction can't handle cleanly
 - Optional SVGO optimization with file size display
 - Imported shapes, icons, and saved presets persist across sessions via local storage
 - CLI for scripting and batch generation
@@ -78,6 +78,17 @@ node cli.js -l N --custom-shape my-shape.svg -c blue -o ./icons/
 
 # Badge composer — import icon + badge overlay
 node cli.js --base-icon logo.svg --badge-svg badge.svg -o ./icons/
+
+# Layered badges with per-badge anchors (br = bottom-right, tl = top-left)
+node cli.js -l N -s circle -c blue \
+  --badge-svg a.svg --badge-anchor br \
+  --badge-svg b.svg --badge-anchor tl
+
+# Badge composer at the IntelliJ 24px tool-window size; rewrites width/height
+node cli.js --base-icon logo.svg --badge-svg badge.svg --target-size 24 -o ./icons/
+
+# Use clip-path cutout instead of boolean subtraction (fallback for tricky icons)
+node cli.js --base-icon palette.svg --badge-svg badge.svg --prefer-clip-path -o ./icons/
 
 # Output to stdout
 node cli.js -l A -s shield -c green --stdout
