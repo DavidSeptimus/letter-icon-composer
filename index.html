@@ -1018,19 +1018,6 @@
       <button class="style-toggle" id="toggleGuideBadge" style="display:none" title="Badge size guide">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="rgba(130,220,100,0.85)" stroke-width="1.2"><rect x="8" y="8" width="6" height="6" rx="0.5"/></svg>
       </button>
-      <label id="targetSizeWrap" style="display:none;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);margin-left:8px" title="IntelliJ icon target size — drives the pixel grid, checkerboard, actual-size preview, and the output SVG's width/height attributes.">
-        <span>Target</span>
-        <select id="targetSize" style="padding:2px 6px;font-size:11px">
-          <option value="original" selected>Original (16×16)</option>
-          <option value="12">12 px</option>
-          <option value="16">16 px</option>
-          <option value="20">20 px</option>
-          <option value="24">24 px</option>
-          <option value="32">32 px</option>
-          <option value="40">40 px</option>
-          <option value="48">48 px</option>
-        </select>
-      </label>
     </div>
 
     <div class="preview-row">
@@ -1217,6 +1204,23 @@
         <input type="text" id="fileName" value="icon" placeholder="e.g. myNode">
         <div class="font-info" style="margin-top:4px">
           Downloads as <code>{name}.svg</code> and <code>{name}_dark.svg</code>
+        </div>
+      </details>
+
+      <details class="section" id="targetSizeSection" open style="display:none">
+        <summary class="section-title">Target Size</summary>
+        <select id="targetSize">
+          <option value="original" selected>Original (16×16)</option>
+          <option value="12">12 px</option>
+          <option value="16">16 px</option>
+          <option value="20">20 px</option>
+          <option value="24">24 px</option>
+          <option value="32">32 px</option>
+          <option value="40">40 px</option>
+          <option value="48">48 px</option>
+        </select>
+        <div class="font-info" style="margin-top:4px">
+          Sets the output SVG's width &amp; height (viewBox preserved).
         </div>
       </details>
 
@@ -2936,8 +2940,8 @@ function switchMode(mode) {
   document.getElementById('toggleGuideLetter').style.display = isBase ? 'none' : '';
   document.getElementById('toggleGuideShape').style.display = isBase ? 'none' : '';
 
-  // Target size selector is only meaningful in badge composer mode
-  document.getElementById('targetSizeWrap').style.display = isBase ? 'inline-flex' : 'none';
+  // Target size section is only meaningful in badge composer mode
+  document.getElementById('targetSizeSection').style.display = isBase ? '' : 'none';
 
   render();
 }
