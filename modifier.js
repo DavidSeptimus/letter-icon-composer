@@ -280,8 +280,16 @@ async function createFullEngine(paper) {
   /**
    * Import badge SVG shapes, position them, unite, and expand by gap.
    * Returns a single Paper.js Path to use as the cutout (replaces old rectangular notch).
+   *
+   * fillEnclosedRegions: when true (default), CompoundPaths are split into their
+   * individual closed subpaths so each becomes a filled region — bypassing the
+   * even-odd / opposite-winding hole semantics that some icons use to draw
+   * outlined shapes (e.g. a palette traced as outer + inner contour). Without
+   * this, the silhouette only includes the visibly-painted ring; with it, the
+   * full enclosed footprint is cut. Disable to honor intentional holes (donuts,
+   * frames).
    */
-  function importBadgeSilhouette(badgeSvg, tx, ty, scale, gap) {
+  function importBadgeSilhouette(badgeSvg, tx, ty, scale, gap, fillEnclosedRegions = true) {
     const badgeDoc = new DOMParser_().parseFromString(badgeSvg, 'image/svg+xml');
     const badgeSvgEl = badgeDoc.documentElement;
 
@@ -303,40 +311,58 @@ async function createFullEngine(paper) {
       const display = el.getAttribute('display');
       const visibility = el.getAttribute('visibility');
       if (display === 'none' || visibility === 'hidden') return;
-      if (fill === 'none' && (!stroke || stroke === 'none')) return;
+      // In fillEnclosedRegions mode, paint-less outlines still define a region
+      // worth cutting (the user opted into "outline = cutout area"). Otherwise,
+      // an element with no fill and no stroke is invisible and contributes nothing.
+      if (!fillEnclosedRegions && fill === 'none' && (!stroke || stroke === 'none')) return;
 
       const p = svgElToPaperPath(el);
       if (!p) return;
       if (parentTransform) applyPaperTransform(p, parentTransform);
+
+      // Split a CompoundPath into its child subpaths when filling enclosed regions —
+      // each subpath then gets pushed as its own filled Path, and the later unite()
+      // collapses overlapping siblings into the outermost shape.
+      let pieces;
+      if (fillEnclosedRegions && p instanceof paper.CompoundPath) {
+        pieces = p.removeChildren();
+        for (const piece of pieces) {
+          if (!piece.closed && piece.segments.length > 1) piece.closed = true;
+        }
+        p.remove();
+      } else {
+        pieces = [p];
+      }
 
       // SVG default stroke-width is 1 — when stroke is set without an explicit
       // width, treat as 1 so the silhouette includes the visible stroke extent.
       const swAttr = el.getAttribute('stroke-width');
       const sw = swAttr !== null ? parseFloat(swAttr) : 1;
       const hasStroke = stroke && stroke !== 'none' && sw > 0;
-      const isFillNone = fill === 'none';
 
-      if (hasStroke) {
-        const joinStyle = el.getAttribute('stroke-linejoin') === 'round' ? 'round' : 'miter';
+      for (const piece of pieces) {
+        if (hasStroke) {
+          const joinStyle = el.getAttribute('stroke-linejoin') === 'round' ? 'round' : 'miter';
 
-        if (p.closed) {
-          // Closed stroked path: expand outward by sw/2 to get the outer boundary
-          // as a filled path (includes interior). This ensures the full enclosed
-          // area is part of the silhouette, not just the stroke ring.
-          const outer = PaperOffset.offset(p, sw / 2, { join: joinStyle, insert: false });
-          p.remove();
-          if (outer) paths.push(outer);
+          if (piece.closed) {
+            // Closed stroked path: expand outward by sw/2 to get the outer boundary
+            // as a filled path (includes interior). This ensures the full enclosed
+            // area is part of the silhouette, not just the stroke ring.
+            const outer = PaperOffset.offset(piece, sw / 2, { join: joinStyle, insert: false });
+            piece.remove();
+            if (outer) paths.push(outer);
+          } else {
+            // Open path: offsetStroke to get the stroke area as a filled shape
+            const capStyle = el.getAttribute('stroke-linecap') === 'round' ? 'round' : 'butt';
+            const strokeOutline = PaperOffset.offsetStroke(piece, sw / 2, {
+              join: joinStyle, cap: capStyle, insert: false
+            });
+            piece.remove();
+            if (strokeOutline) paths.push(strokeOutline);
+          }
         } else {
-          // Open path: offsetStroke to get the stroke area as a filled shape
-          const capStyle = el.getAttribute('stroke-linecap') === 'round' ? 'round' : 'butt';
-          const strokeOutline = PaperOffset.offsetStroke(p, sw / 2, {
-            join: joinStyle, cap: capStyle, insert: false
-          });
-          p.remove();
-          if (strokeOutline) paths.push(strokeOutline);
+          paths.push(piece);
         }
-      } else {
-        paths.push(p);
       }
     }
 
@@ -410,7 +436,8 @@ async function createFullEngine(paper) {
 
     // Import badge silhouette and expand by gap to create the cutout shape
     const notch = importBadgeSilhouette(
-      badge.svgText, placement.tx, placement.ty, placement.scale, gap);
+      badge.svgText, placement.tx, placement.ty, placement.scale, gap,
+      badge.fillEnclosedRegions ?? true);
 
     if (!notch) return svgString;
 
@@ -443,6 +470,12 @@ async function createFullEngine(paper) {
       defs.appendChild(clipPath);
     }
 
+    // Tag clip-path wrapper groups added by previous badge iterations so we can
+    // recognize them on subsequent iterations and compose clips by nesting,
+    // rather than collapsing them away.
+    const isBadgeClipGroup = (node) =>
+      node?.tagName?.toLowerCase() === 'g' && node.hasAttribute('data-badge-clip');
+
     function processEl(el, parentTransform) {
       const tag = el.tagName.toLowerCase();
       if (tag === 'defs') return; // Skip defs from previous iterations
@@ -457,13 +490,16 @@ async function createFullEngine(paper) {
           ensureClipDef();
           const wrapper = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
           wrapper.setAttribute('clip-path', `url(#${clipId})`);
+          wrapper.setAttribute('data-badge-clip', String(index));
           el.parentNode.insertBefore(wrapper, el);
           wrapper.appendChild(el);
           return;
         }
         const t = el.getAttribute('transform');
         for (const child of Array.from(el.children)) processEl(child, t);
-        if (el.children.length === 0) el.remove();
+        // Don't collapse our own clip wrappers even if they end up looking empty —
+        // they hold the cumulative clip stack across iterations.
+        if (el.children.length === 0 && !isBadgeClipGroup(el)) el.remove();
         return;
       }
 
@@ -491,7 +527,10 @@ async function createFullEngine(paper) {
           el.setAttribute('transform', existing ? `${parentTransform} ${existing}` : parentTransform);
         }
         const parent_ = el.parentNode;
-        if (parent_.tagName?.toLowerCase() === 'g' && parent_.children.length === 1) {
+        // Skip the unwrap when the parent is a previous-iteration clip wrapper —
+        // collapsing it here would silently drop that iteration's gap/silhouette.
+        if (parent_.tagName?.toLowerCase() === 'g' && parent_.children.length === 1
+            && !isBadgeClipGroup(parent_)) {
           parent_.parentNode.insertBefore(el, parent_);
           parent_.remove();
         }
@@ -514,12 +553,28 @@ async function createFullEngine(paper) {
           // The clip-path must live on a wrapper <g> in root coordinate space,
           // NOT on the element itself (whose transform would shift the clip coords).
           ensureClipDef();
+
+          // If the element is already inside a previous iteration's clip wrapper,
+          // nest the new wrapper AROUND that wrapper so the clips compose
+          // (intersection of keep regions). Replacing it would discard the
+          // earlier iteration's gap/silhouette, leaving only the topmost clip.
+          if (isBadgeClipGroup(parent)) {
+            const wrapper = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+            wrapper.setAttribute('clip-path', `url(#${clipId})`);
+            wrapper.setAttribute('data-badge-clip', String(index));
+            parent.parentNode.insertBefore(wrapper, parent);
+            wrapper.appendChild(parent);
+            pp.remove();
+            return;
+          }
+
           if (parentTransform) {
             const existing = el.getAttribute('transform');
             el.setAttribute('transform', existing ? `${parentTransform} ${existing}` : parentTransform);
           }
           const wrapper = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
           wrapper.setAttribute('clip-path', `url(#${clipId})`);
+          wrapper.setAttribute('data-badge-clip', String(index));
           if (insertionPoint) {
             insertionPoint.parentNode.insertBefore(wrapper, insertionPoint);
             if (insertionPoint.children.length === 0) insertionPoint.remove();
@@ -612,7 +667,8 @@ async function createFullEngine(paper) {
 
     const gap = badge.gap ?? 1;
     const notch = importBadgeSilhouette(
-      badge.svgText, placement.tx, placement.ty, placement.scale, gap);
+      badge.svgText, placement.tx, placement.ty, placement.scale, gap,
+      badge.fillEnclosedRegions ?? true);
     if (!notch) return svgString;
 
     const viewBoxRect = new paper.Path.Rectangle(new paper.Rectangle(0, 0, s, s));
@@ -639,11 +695,15 @@ async function createFullEngine(paper) {
     if (badges.length === 0) return svgString;
 
     const preferClipPath = opts && opts.preferClipPath;
+    const fillEnclosedDefault = opts?.fillEnclosedRegions ?? true;
     let result = svgString;
     for (let i = 0; i < badges.length; i++) {
+      const badge = badges[i].fillEnclosedRegions === undefined
+        ? { ...badges[i], fillEnclosedRegions: fillEnclosedDefault }
+        : badges[i];
       result = preferClipPath
-        ? applySingleBadgeClipPathPreferred(result, viewBoxSize, badges[i], i)
-        : applySingleBadgePaper(result, viewBoxSize, badges[i], i);
+        ? applySingleBadgeClipPathPreferred(result, viewBoxSize, badge, i)
+        : applySingleBadgePaper(result, viewBoxSize, badge, i);
     }
     return result;
   }

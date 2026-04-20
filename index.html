@@ -968,6 +968,11 @@
           <input type="checkbox" id="badgeTrim" checked>
           <span class="toggle-switch"></span>
         </label>
+        <label class="toggle-row" style="margin-top:8px" title="Treat the badge's outline as a solid cutout area, even when the badge has hollow regions (e.g. a palette icon with a thumb hole). Turn off to respect intentional holes (donut, frame badges).">
+          <span>Cut full badge area</span>
+          <input type="checkbox" id="badgeFillEnclosed" checked>
+          <span class="toggle-switch"></span>
+        </label>
         <label class="toggle-row" style="margin-top:8px" title="Render the cutout with a clip-path group instead of boolean path subtraction. Preserves the base icon's paths; use when subtraction corrupts an icon.">
           <span>Prefer clip-path</span>
           <input type="checkbox" id="badgePreferClipPath">
@@ -1833,6 +1838,7 @@ function renderLetterIcon() {
         scale: b.scale, gap: b.gap, anchor: b.anchor,
       })),
       preferClipPath: document.getElementById('badgePreferClipPath').checked,
+      fillEnclosedRegions: document.getElementById('badgeFillEnclosed').checked,
     };
     rawLight = applyModifier(rawLight, 'custom', lightStroke, lastViewBoxSize, opts);
     rawDark = applyModifier(rawDark, 'custom', darkStroke, lastViewBoxSize, opts);
@@ -1866,6 +1872,7 @@ function renderBaseIcon() {
         scale: b.scale, gap: b.gap, anchor: b.anchor,
       })),
       preferClipPath: document.getElementById('badgePreferClipPath').checked,
+      fillEnclosedRegions: document.getElementById('badgeFillEnclosed').checked,
     };
     rawSvg = applyModifier(rawSvg, 'custom', '#000000', viewBoxSize, opts);
   }
@@ -2703,6 +2710,17 @@ document.getElementById('fileName').addEventListener('input', () => {
   cb.checked = localStorage.getItem('badge-prefer-clip-path') === 'true';
   cb.addEventListener('change', () => {
     localStorage.setItem('badge-prefer-clip-path', cb.checked);
+    render();
+  });
+}
+
+// "Cut full badge area" toggle (global, persisted; default ON)
+{
+  const cb = document.getElementById('badgeFillEnclosed');
+  const stored = localStorage.getItem('badge-fill-enclosed');
+  cb.checked = stored === null ? true : stored === 'true';
+  cb.addEventListener('change', () => {
+    localStorage.setItem('badge-fill-enclosed', cb.checked);
     render();
   });
 }

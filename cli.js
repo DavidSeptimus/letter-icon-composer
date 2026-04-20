@@ -229,6 +229,8 @@ const { values: args } = parseArgs({
     'badge-gap':      { type: 'string', multiple: true },
     'badge-anchor':   { type: 'string', multiple: true },
     'badge-trim':     { type: 'string', multiple: true },
+    'badge-fill-enclosed': { type: 'string', multiple: true },
+    'fill-enclosed-regions': { type: 'string', default: 'true' },
     'prefer-clip-path': { type: 'boolean', default: false },
     'target-size':    { type: 'string' },
     'custom-shape': { type: 'string' },
@@ -297,6 +299,13 @@ Modifier:
   --badge-anchor <pos>     Per-badge anchor: tl, t, tr, l, c, r, bl, b, br (repeatable, default: br)
   --badge-trim <bool>      Per-badge viewBox trim: true|false (repeatable, default: true).
                            Tightens the badge's viewBox to its visible content.
+  --fill-enclosed-regions <bool>
+                           Treat each badge's outline as a solid cutout area (default: true),
+                           even when the badge has hollow regions (e.g. a palette icon with
+                           a thumb hole). Set to false to respect intentional holes
+                           (donut, frame badges).
+  --badge-fill-enclosed <bool>
+                           Per-badge override of --fill-enclosed-regions (repeatable).
   --prefer-clip-path       Render the cutout with a clip-path group instead of boolean path subtraction.
                            Preserves the base icon's paths; use when subtraction corrupts an icon.
   --target-size <px>       (--base-icon mode) Set the output SVG's width/height to <px>.
@@ -525,15 +534,20 @@ if (badgeSvgFiles.length > 0) {
   const scales = args['badge-scale'] || [];
   const gaps = args['badge-gap'] || [];
   const trims = args['badge-trim'] || [];
+  const fillEncs = args['badge-fill-enclosed'] || [];
+  const parseBool = (v) => v === undefined ? undefined : !/^(false|0|no|off)$/i.test(v);
   const parseTrim = (v) => v === undefined ? true : !/^(false|0|no|off)$/i.test(v);
+  const fillEnclosedDefault = !/^(false|0|no|off)$/i.test(args['fill-enclosed-regions']);
   badgeOpts = {
     preferClipPath: args['prefer-clip-path'],
+    fillEnclosedRegions: fillEnclosedDefault,
     badges: await Promise.all(badgeSvgFiles.map(async (file, i) => {
       const svgText = await readFile(resolve(file), 'utf-8');
       if (!svgText.includes('<svg')) {
         console.error(`Error: --badge-svg file "${file}" does not contain valid SVG markup.`);
         process.exit(1);
       }
+      const perBadgeFill = parseBool(fillEncs[i]);
       return {
         svgText: parseTrim(trims[i]) ? trimBadgeViewBox(svgText) : svgText,
         xOffset: parseFloat(xOffsets[i] ?? '0'),
@@ -541,6 +555,7 @@ if (badgeSvgFiles.length > 0) {
         scale: parseFloat(scales[i] ?? '1'),
         gap: parseFloat(gaps[i] ?? '1'),
         anchor: badgeAnchors[i] || 'br',
+        ...(perBadgeFill !== undefined ? { fillEnclosedRegions: perBadgeFill } : {}),
       };
     })),
   };
