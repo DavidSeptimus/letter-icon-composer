@@ -649,7 +649,16 @@
     padding: 0 2px;
   }
   .badge-list-item .drag-handle:active { cursor: grabbing; }
-  .badge-list-item svg { flex-shrink: 0; }
+  .badge-list-item .badge-list-thumb {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .badge-list-item .badge-list-thumb svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
   .badge-list-item-name {
     flex: 1;
     overflow: hidden;
@@ -862,10 +871,17 @@
   .base-icon-zone.dragover { border-color: var(--accent); background: rgba(53,116,240,0.08); }
   .base-icon-zone .base-icon-thumb {
     display: inline-block;
+    width: 48px;
+    height: 48px;
     margin-bottom: 8px;
     border: 1px dashed var(--border);
     border-radius: 4px;
     padding: 4px;
+  }
+  .base-icon-zone .base-icon-thumb svg {
+    width: 100%;
+    height: 100%;
+    display: block;
   }
   .base-icon-zone .base-icon-name {
     display: block;
@@ -2821,8 +2837,8 @@ function renderBadgeList() {
     item.appendChild(handle);
 
     const thumb = document.createElement('div');
-    thumb.style.cssText = 'width:20px;height:20px;flex-shrink:0';
-    thumb.innerHTML = badge.svgText.replace(/width=["'][^"']*["']/i, 'width="20"').replace(/height=["'][^"']*["']/i, 'height="20"');
+    thumb.className = 'badge-list-thumb';
+    thumb.innerHTML = badge.svgText;
     item.appendChild(thumb);
 
     const name = document.createElement('span');
@@ -3059,13 +3075,11 @@ function setBaseIcon(svgText, fileName, skipRender) {
   userEditedFileName = false;
   document.getElementById('fileName').value = baseIconName + (badges.length > 0 ? '_badged' : '');
 
-  // Show thumbnail in drop zone — strip any existing width/height (might be
-  // absent on viewBox-only SVGs) then inject 48×48 so the thumb sizes correctly.
+  // Show thumbnail in drop zone — the .base-icon-thumb container's CSS sizes
+  // the SVG, so the raw markup goes in untouched (works for viewBox-only SVGs
+  // that lack width/height too).
   const zone = document.getElementById('baseIconDropZone');
-  const thumbSvg = svgText
-    .replace(/\s+width=["'][^"']*["']/i, '')
-    .replace(/\s+height=["'][^"']*["']/i, '')
-    .replace(/<svg\b/i, '<svg width="48" height="48"');
+  const thumbSvg = svgText;
   const displayName = fileName || 'icon.svg';
   zone.innerHTML = `<div class="base-icon-thumb">${thumbSvg}</div>` +
     `<span class="base-icon-name" title="${displayName.replace(/"/g, '&quot;')}">${displayName}</span>` +
