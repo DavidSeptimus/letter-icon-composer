@@ -230,6 +230,7 @@ const { values: args } = parseArgs({
     'badge-anchor':   { type: 'string', multiple: true },
     'badge-trim':     { type: 'string', multiple: true },
     'prefer-clip-path': { type: 'boolean', default: false },
+    'target-size':    { type: 'string' },
     'custom-shape': { type: 'string' },
     'base-icon':    { type: 'string' },
     name:        { type: 'string',  short: 'n' },
@@ -298,6 +299,8 @@ Modifier:
                            Tightens the badge's viewBox to its visible content.
   --prefer-clip-path       Render the cutout with a clip-path group instead of boolean path subtraction.
                            Preserves the base icon's paths; use when subtraction corrupts an icon.
+  --target-size <px>       (--base-icon mode) Set the output SVG's width/height to <px>.
+                           Common IDE sizes: 12, 16, 20, 24, 32, 40, 48. viewBox is preserved.
 
 Output:
   -n, --name <name>        Base file name (default: derived from letter)
@@ -558,7 +561,18 @@ if (isBaseIconMode) {
     rawSvg = applyModifier(rawSvg, modifierKey, '#000000', viewBoxSize, badgeOpts);
   }
 
-  const finalSVG = optimizeSVG(rawSvg);
+  let finalSVG = optimizeSVG(rawSvg);
+  // --target-size rewrites width/height so consumers that respect them render
+  // the icon at the IntelliJ target pixel size. viewBox stays untouched.
+  if (args['target-size']) {
+    const t = parseInt(args['target-size'], 10);
+    if (!isFinite(t) || t <= 0) {
+      console.error(`Error: --target-size must be a positive integer.`);
+      process.exit(1);
+    }
+    finalSVG = finalSVG.replace(/width="\d+(?:\.\d+)?"\s+height="\d+(?:\.\d+)?"/,
+      `width="${t}" height="${t}"`);
+  }
   const baseName = args.name || args['base-icon'].replace(/^.*[/\\]/, '').replace(/\.svg$/i, '');
 
   if (args.stdout) {
