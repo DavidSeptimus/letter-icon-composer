@@ -1018,11 +1018,12 @@
       <button class="style-toggle" id="toggleGuideBadge" style="display:none" title="Badge size guide">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="rgba(130,220,100,0.85)" stroke-width="1.2"><rect x="8" y="8" width="6" height="6" rx="0.5"/></svg>
       </button>
-      <label id="targetSizeWrap" style="display:none;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);margin-left:8px" title="IntelliJ icon target size — drives the pixel grid, checkerboard, and actual-size preview.">
+      <label id="targetSizeWrap" style="display:none;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);margin-left:8px" title="IntelliJ icon target size — drives the pixel grid, checkerboard, actual-size preview, and the output SVG's width/height attributes.">
         <span>Target</span>
         <select id="targetSize" style="padding:2px 6px;font-size:11px">
+          <option value="original" selected>Original (16×16)</option>
           <option value="12">12 px</option>
-          <option value="16" selected>16 px</option>
+          <option value="16">16 px</option>
           <option value="20">20 px</option>
           <option value="24">24 px</option>
           <option value="32">32 px</option>
@@ -1354,7 +1355,8 @@ let svgoEnabled = localStorage.getItem('svgo-enabled') !== 'false';
 let currentMode = 'letter'; // 'letter' | 'base-icon'
 let baseIconSvg = null;
 let baseIconName = 'icon';
-let targetSize = parseInt(localStorage.getItem('badge-target-size') || '16', 10);
+// Either 'original' (use the imported icon's native size) or a numeric pixel target
+let targetSize = localStorage.getItem('badge-target-size') || 'original';
 let customShapes = [];       // Array of { key, shape, label, svgText }
 let customPresets = [];      // Array of { name, lightFill, lightStroke, darkFill, darkStroke }
 
@@ -1545,11 +1547,13 @@ function drawPixelGrid(id) {
   const el = document.getElementById(id);
   if (!el) return;
   const s = lastViewBoxSize;
-  // Cap at the user-selected target IntelliJ icon size in badge mode
-  // (default 16). Letter-mode icons are designed at native viewBox size,
-  // so the cap stays at 16. Either way, large imported viewBoxes (e.g. 512)
-  // collapse to a meaningful per-target-pixel grid.
-  const cap = currentMode === 'base-icon' ? targetSize : 16;
+  // Cap at the user-selected target IntelliJ icon size in badge mode. When
+  // 'original' is selected the cap follows the native viewBox but is bounded
+  // at 48 (the largest IDE icon size) so 512-vb icons don't drown the overlay
+  // in lines. Letter-mode icons are designed at native viewBox size, so the
+  // cap stays at 16.
+  const cap = currentMode === 'base-icon' && targetSize !== 'original'
+    ? parseInt(targetSize, 10) : (currentMode === 'base-icon' ? Math.min(s, 48) : 16);
   const cells = Math.min(s, cap);
   const step = s / cells;
   const sw = step / 8;
@@ -1829,6 +1833,9 @@ function renderBaseIcon() {
 
   let { svg: rawSvg, viewBoxSize } = generateBaseIconSVG(baseIconSvg);
   lastViewBoxSize = viewBoxSize;
+  // Keep the "Original (NxN)" label in sync with the loaded icon's native size
+  const orig = document.querySelector('#targetSize option[value="original"]');
+  if (orig) orig.textContent = `Original (${viewBoxSize}\u00d7${viewBoxSize})`;
 
   if (badges.length > 0) {
     const opts = {
@@ -1842,7 +1849,13 @@ function renderBaseIcon() {
     rawSvg = applyModifier(rawSvg, 'custom', '#000000', viewBoxSize, opts);
   }
 
-  const finalSvg = optimizeSVG(rawSvg);
+  let finalSvg = optimizeSVG(rawSvg);
+  // Bake target size into the output's width/height so consumers that respect
+  // those attributes render at the IntelliJ icon size. viewBox stays untouched.
+  if (targetSize !== 'original') {
+    finalSvg = finalSvg.replace(/width="\d+(?:\.\d+)?"\s+height="\d+(?:\.\d+)?"/,
+      `width="${targetSize}" height="${targetSize}"`);
+  }
   svgLight = svgDark = finalSvg;
   updatePreviews();
 }
@@ -1859,13 +1872,16 @@ function updatePreviews() {
 
   // Sync checkerboard cell size with the pixel grid (one checker square per
   // grid cell — CSS repeats every 2*cell, so cell = half-pixel).
-  const cap = currentMode === 'base-icon' ? targetSize : 16;
+  const cap = currentMode === 'base-icon' && targetSize !== 'original'
+    ? parseInt(targetSize, 10) : (currentMode === 'base-icon' ? Math.min(lastViewBoxSize, 48) : 16);
   const cellSize = (128 / Math.min(lastViewBoxSize, cap) / 2) + 'px';
   document.querySelectorAll('.preview-zoomed').forEach(el => el.style.setProperty('--cell', cellSize));
 
   // Actual size previews — render at the user-selected target size in badge
   // mode so a 512-vb illustration shows at the actual IntelliJ icon size.
-  const actualSize = currentMode === 'base-icon' ? targetSize : lastViewBoxSize;
+  // 'original' keeps the native viewBox size.
+  const actualSize = currentMode === 'base-icon' && targetSize !== 'original'
+    ? parseInt(targetSize, 10) : lastViewBoxSize;
   const sizeRe = /width="\d+(?:\.\d+)?"\s+height="\d+(?:\.\d+)?"/;
   document.getElementById('previewLightActual').innerHTML =
     svgLight.replace(sizeRe, `width="${actualSize}" height="${actualSize}"`);
@@ -2626,12 +2642,13 @@ for (const [sliderId, valId, dec, prop] of [
   });
 }
 
-// Target size selector (badge mode only — drives grid, checkerboard, and actual-size preview)
+// Target size selector (badge mode only — drives grid, checkerboard,
+// actual-size preview, and the output's width/height attributes)
 {
   const sel = document.getElementById('targetSize');
-  sel.value = String(targetSize);
+  sel.value = targetSize;
   sel.addEventListener('change', () => {
-    targetSize = parseInt(sel.value, 10);
+    targetSize = sel.value;
     localStorage.setItem('badge-target-size', targetSize);
     render();
   });
