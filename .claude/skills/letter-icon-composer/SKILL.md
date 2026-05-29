@@ -67,11 +67,11 @@ Shape & Color:
   -s, --shape <name>       Shape (default: circle). Run --list shapes for options.
   -c, --color <preset>     Color preset (default: blue). Run --list presets for options.
   --light-fill <hex>       Override light fill color
-  --light-stroke <hex>     Override light stroke color (also the letter color unless --light-letter is set)
-  --light-letter <hex>     Override light letter color (defaults to the light stroke color)
+  --light-stroke <hex>     Override light stroke color (also the letter color unless --light-letter-color is set)
+  --light-letter-color <hex>  Override light letter color (defaults to the light stroke color)
   --dark-fill <hex>        Override dark fill color
-  --dark-stroke <hex>      Override dark stroke color (also the letter color unless --dark-letter is set)
-  --dark-letter <hex>      Override dark letter color (defaults to the dark stroke color)
+  --dark-stroke <hex>      Override dark stroke color (also the letter color unless --dark-letter-color is set)
+  --dark-letter-color <hex>   Override dark letter color (defaults to the dark stroke color)
 
 Font:
   -f, --font <key>         Built-in font: open-sans, inter (default: open-sans)
