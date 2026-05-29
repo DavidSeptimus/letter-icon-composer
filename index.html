@@ -180,11 +180,16 @@
     width: 28px;
     height: 28px;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     padding: 0;
     background: none;
+    overflow: hidden;
   }
+  /* Let the chosen color fill the swatch edge-to-edge instead of sitting inside a bordered well. */
+  .color-field input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  .color-field input[type="color"]::-webkit-color-swatch { border: none; border-radius: 5px; }
+  .color-field input[type="color"]::-moz-color-swatch { border: none; border-radius: 5px; }
   .color-field input[type="text"] {
     width: 80px;
     font-family: 'JetBrains Mono', monospace;
@@ -193,6 +198,28 @@
   .color-field input[type="text"].invalid {
     border-color: var(--error);
     outline-color: var(--error);
+  }
+  .letter-row { margin-top: 8px; }
+  .link-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0;
+  }
+  .link-btn svg { width: 15px; height: 15px; }
+  .link-btn:hover { border-color: var(--accent); }
+  .link-btn.linked {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
   .preset-grid {
@@ -1159,11 +1186,19 @@
             </div>
           </div>
           <div>
-            <label>Stroke / Letter</label>
+            <label>Stroke</label>
             <div class="color-field">
               <input type="color" id="lightStroke" value="#3574F0">
               <input type="text" id="lightStrokeHex" value="#3574F0">
             </div>
+          </div>
+        </div>
+        <div class="letter-row">
+          <label>Letter</label>
+          <div class="color-field">
+            <input type="color" id="lightLetter" value="#3574F0">
+            <input type="text" id="lightLetterHex" value="#3574F0">
+            <button type="button" class="link-btn linked" id="lightLetterLink"></button>
           </div>
         </div>
       </details>
@@ -1179,11 +1214,19 @@
             </div>
           </div>
           <div>
-            <label>Stroke / Letter</label>
+            <label>Stroke</label>
             <div class="color-field">
               <input type="color" id="darkStroke" value="#548AF7">
               <input type="text" id="darkStrokeHex" value="#548AF7">
             </div>
+          </div>
+        </div>
+        <div class="letter-row">
+          <label>Letter</label>
+          <div class="color-field">
+            <input type="color" id="darkLetter" value="#548AF7">
+            <input type="text" id="darkLetterHex" value="#548AF7">
+            <button type="button" class="link-btn linked" id="darkLetterLink"></button>
           </div>
         </div>
       </details>
@@ -1827,8 +1870,13 @@ function renderLetterIcon() {
   const darkStroke = document.getElementById('darkStroke').value;
   const sw = parseFloat(document.getElementById('strokeWidth').value);
 
-  let rawLight = generateSVG(lightFill, lightStroke, lightStroke, sw);
-  let rawDark = generateSVG(darkFill, darkStroke, darkStroke, sw);
+  // Mirror stroke into any linked letter picker, then read the effective letter color.
+  refreshLetterLinks();
+  const lightLetter = document.getElementById('lightLetter').value;
+  const darkLetter = document.getElementById('darkLetter').value;
+
+  let rawLight = generateSVG(lightFill, lightStroke, lightLetter, sw);
+  let rawDark = generateSVG(darkFill, darkStroke, darkLetter, sw);
 
   if (badges.length > 0) {
     const opts = {
@@ -1979,6 +2027,36 @@ function deselectPreset() {
   buildPresets();
 }
 
+// Per-theme link state: when linked, the letter color follows the stroke.
+const letterLink = { light: true, dark: true };
+const LINK_ICON_LINKED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+const LINK_ICON_UNLINKED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.84 12.25l1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" y1="2" x2="8" y2="5"/><line x1="2" y1="8" x2="5" y2="8"/><line x1="16" y1="19" x2="16" y2="22"/><line x1="19" y1="16" x2="22" y2="16"/></svg>';
+
+// Reflect each theme's link state on its button, and — while linked — mirror the
+// stroke color into the (display-only) letter picker so it visibly tracks the stroke.
+function refreshLetterLinks() {
+  for (const theme of ['light', 'dark']) {
+    const linked = letterLink[theme];
+    const btn = document.getElementById(theme + 'LetterLink');
+    btn.classList.toggle('linked', linked);
+    btn.innerHTML = linked ? LINK_ICON_LINKED : LINK_ICON_UNLINKED;
+    btn.title = linked
+      ? 'Letter color follows the stroke. Click to set it independently.'
+      : 'Letter color is independent. Click to follow the stroke again.';
+    if (linked) {
+      const stroke = document.getElementById(theme + 'Stroke').value.toUpperCase();
+      document.getElementById(theme + 'Letter').value = stroke;
+      document.getElementById(theme + 'LetterHex').value = stroke;
+    }
+  }
+}
+
+// Set one theme's link state (used by user toggles and preset application).
+function setLetterLink(theme, linked) {
+  letterLink[theme] = linked;
+  refreshLetterLinks();
+}
+
 function parseHexColor(value) {
   let v = value.trim();
   if (!v.startsWith('#')) v = '#' + v;
@@ -2039,6 +2117,17 @@ function buildPresets() {
   const curLS = document.getElementById('lightStroke').value.toUpperCase();
   const curDF = document.getElementById('darkFill').value.toUpperCase();
   const curDS = document.getElementById('darkStroke').value.toUpperCase();
+  // A letter color is only "set" when its theme is unlinked from the stroke.
+  const curLL = letterLink.light ? null : document.getElementById('lightLetter').value.toUpperCase();
+  const curDL = letterLink.dark ? null : document.getElementById('darkLetter').value.toUpperCase();
+
+  // A preset matches the current state only if its fill/stroke AND letter config
+  // line up. Presets without a letter field for a theme mean "letter follows stroke".
+  const presetMatchesCurrent = (p) =>
+    p.lightFill.toUpperCase() === curLF && p.lightStroke.toUpperCase() === curLS &&
+    p.darkFill.toUpperCase() === curDF && p.darkStroke.toUpperCase() === curDS &&
+    (p.lightLetter ? p.lightLetter.toUpperCase() : null) === curLL &&
+    (p.darkLetter ? p.darkLetter.toUpperCase() : null) === curDL;
 
   const allPresets = [...PRESETS, ...customPresets.map(p => ({ ...p, isUser: true }))];
 
@@ -2058,10 +2147,7 @@ function buildPresets() {
       grid.appendChild(divider);
     }
 
-    const isActive = p.lightFill.toUpperCase() === curLF &&
-      p.lightStroke.toUpperCase() === curLS &&
-      p.darkFill.toUpperCase() === curDF &&
-      p.darkStroke.toUpperCase() === curDS;
+    const isActive = presetMatchesCurrent(p);
 
     const btn = document.createElement('button');
     btn.className = 'preset-btn' + (isActive ? ' active' : '');
@@ -2078,6 +2164,14 @@ function buildPresets() {
       document.getElementById('darkFillHex').value = p.darkFill;
       document.getElementById('darkStroke').value = p.darkStroke;
       document.getElementById('darkStrokeHex').value = p.darkStroke;
+      // Per theme: a stored letter color means unlinked; its absence means follow stroke.
+      for (const [theme, letter] of [['light', p.lightLetter], ['dark', p.darkLetter]]) {
+        if (letter) {
+          document.getElementById(theme + 'Letter').value = letter;
+          document.getElementById(theme + 'LetterHex').value = letter;
+        }
+        setLetterLink(theme, !letter);
+      }
       render();
       buildPresets();
     });
@@ -2098,8 +2192,7 @@ function buildPresets() {
   });
 
   // Save preset button → inline input on click (hidden if colors already match a preset)
-  const alreadySaved = allPresets.some(p => p.lightFill.toUpperCase() === curLF && p.lightStroke.toUpperCase() === curLS &&
-    p.darkFill.toUpperCase() === curDF && p.darkStroke.toUpperCase() === curDS);
+  const alreadySaved = allPresets.some(presetMatchesCurrent);
 
   if (!alreadySaved) {
   const saveBtn = document.createElement('button');
@@ -2107,6 +2200,7 @@ function buildPresets() {
   saveBtn.textContent = '+ Save current colors as preset';
   saveBtn.addEventListener('click', () => {
     const lightFill = curLF, lightStroke = curLS, darkFill = curDF, darkStroke = curDS;
+    const lightLetter = curLL, darkLetter = curDL;
 
     const wrapper = document.createElement('div');
     wrapper.className = 'save-preset-inline';
@@ -2119,7 +2213,11 @@ function buildPresets() {
     const commit = () => {
       const name = input.value.trim();
       if (!name) { cancel(); return; }
-      customPresets.push({ name, lightFill, lightStroke, darkFill, darkStroke, official: false });
+      const preset = { name, lightFill, lightStroke, darkFill, darkStroke, official: false };
+      // Persist each theme's letter color only when it's unlinked from the stroke.
+      if (lightLetter) preset.lightLetter = lightLetter;
+      if (darkLetter) preset.darkLetter = darkLetter;
+      customPresets.push(preset);
       saveCustomPresets();
       buildPresets();
     };
@@ -2167,6 +2265,8 @@ function saveCustomPresets() {
       lightStroke: p.lightStroke,
       darkFill: p.darkFill,
       darkStroke: p.darkStroke,
+      ...(p.lightLetter ? { lightLetter: p.lightLetter } : {}),
+      ...(p.darkLetter ? { darkLetter: p.darkLetter } : {}),
     }))
   ));
 }
@@ -2647,6 +2747,23 @@ syncColor('lightFill', 'lightFillHex');
 syncColor('lightStroke', 'lightStrokeHex');
 syncColor('darkFill', 'darkFillHex');
 syncColor('darkStroke', 'darkStrokeHex');
+
+// Letter color link controls. The unlink-on-edit listeners are registered BEFORE
+// syncColor so they run first — flipping the link off before syncColor re-renders,
+// so the render reads the user's just-entered color rather than re-mirroring stroke.
+for (const theme of ['light', 'dark']) {
+  const unlinkOnEdit = () => { if (letterLink[theme]) setLetterLink(theme, false); };
+  document.getElementById(theme + 'Letter').addEventListener('input', unlinkOnEdit);
+  document.getElementById(theme + 'LetterHex').addEventListener('input', unlinkOnEdit);
+  document.getElementById(theme + 'LetterLink').addEventListener('click', () => {
+    setLetterLink(theme, !letterLink[theme]);
+    render();
+    deselectPreset();
+  });
+}
+syncColor('lightLetter', 'lightLetterHex');
+syncColor('darkLetter', 'darkLetterHex');
+refreshLetterLinks();
 
 bindSlider('shapeScale', 'shapeScaleVal', 2);
 bindSlider('fontSize', 'fontSizeVal');
