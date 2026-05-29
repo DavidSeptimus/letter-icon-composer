@@ -239,8 +239,10 @@ const { values: args } = parseArgs({
     out:         { type: 'string',  short: 'o', default: '.' },
     'light-fill':   { type: 'string' },
     'light-stroke': { type: 'string' },
+    'light-letter': { type: 'string' },
     'dark-fill':    { type: 'string' },
     'dark-stroke':  { type: 'string' },
+    'dark-letter':  { type: 'string' },
     'light-only':   { type: 'boolean', default: false },
     'dark-only':    { type: 'boolean', default: false },
     stdout:      { type: 'boolean', default: false },
@@ -269,9 +271,11 @@ Shape & Color:
   -s, --shape <name>       Shape: ${Object.keys(SHAPES).join(', ')} (default: circle)
   -c, --color <preset>     Color preset: ${PRESETS.map(p => p.name.toLowerCase()).join(', ')} (default: blue)
   --light-fill <hex>       Override light fill color
-  --light-stroke <hex>     Override light stroke/letter color
+  --light-stroke <hex>     Override light stroke color (also the letter color unless --light-letter is set)
+  --light-letter <hex>     Override light letter color (defaults to the light stroke color)
   --dark-fill <hex>        Override dark fill color
-  --dark-stroke <hex>      Override dark stroke/letter color
+  --dark-stroke <hex>      Override dark stroke color (also the letter color unless --dark-letter is set)
+  --dark-letter <hex>      Override dark letter color (defaults to the dark stroke color)
 
 Font:
   -f, --font <key>         Built-in font: open-sans, inter (default: open-sans)
@@ -440,6 +444,9 @@ if (!isBaseIconMode) {
     darkFill:    args['dark-fill']    || preset?.darkFill,
     darkStroke:  args['dark-stroke']  || preset?.darkStroke,
   };
+  // Letter color follows the stroke color unless explicitly overridden.
+  colors.lightLetter = args['light-letter'] || colors.lightStroke;
+  colors.darkLetter  = args['dark-letter']  || colors.darkStroke;
 }
 
 // ── Load Font ────────────────────────────────────────────────────────
@@ -621,14 +628,14 @@ if (isBaseIconMode) {
     ...commonParams,
     fill: colors.lightFill,
     stroke: colors.lightStroke,
-    letterColor: colors.lightStroke,
+    letterColor: colors.lightLetter,
   });
 
   const darkResult = generateSVG({
     ...commonParams,
     fill: colors.darkFill,
     stroke: colors.darkStroke,
-    letterColor: colors.darkStroke,
+    letterColor: colors.darkLetter,
   });
 
   for (const r of [lightResult, darkResult]) {
