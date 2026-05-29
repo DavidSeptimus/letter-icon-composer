@@ -315,6 +315,21 @@
     border-radius: 50%;
     border: 2px solid currentColor;
     flex-shrink: 0;
+    position: relative;
+  }
+  /* A small ring in the letter color — shown only for presets with an independent letter color.
+     Drawn geometrically (not a glyph) so it centers exactly regardless of font metrics. */
+  .preset-swatch.has-letter::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--letter-color);
+    box-sizing: border-box;
   }
 
   .shape-grid {
@@ -2151,7 +2166,8 @@ function buildPresets() {
 
     const btn = document.createElement('button');
     btn.className = 'preset-btn' + (isActive ? ' active' : '');
-    btn.innerHTML = `<span class="preset-swatch" data-light-fill="${p.lightFill}" data-light-stroke="${p.lightStroke}" data-dark-fill="${p.darkFill}" data-dark-stroke="${p.darkStroke}"></span>${p.name}`;
+    const letterData = `${p.lightLetter ? ` data-light-letter="${p.lightLetter}"` : ''}${p.darkLetter ? ` data-dark-letter="${p.darkLetter}"` : ''}`;
+    btn.innerHTML = `<span class="preset-swatch" data-light-fill="${p.lightFill}" data-light-stroke="${p.lightStroke}" data-dark-fill="${p.darkFill}" data-dark-stroke="${p.darkStroke}"${letterData}></span>${p.name}`;
     btn.title = p.official ? `JetBrains expUI — ${p.name}` : p.isUser ? `Saved — ${p.name}` : `Custom — ${p.name}`;
     btn.addEventListener('click', () => {
       grid.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
@@ -2711,6 +2727,14 @@ function updatePresetSwatches(themeKey) {
   document.querySelectorAll('.preset-swatch').forEach(s => {
     s.style.background = useLight ? s.dataset.lightFill : s.dataset.darkFill;
     s.style.color = useLight ? s.dataset.lightStroke : s.dataset.darkStroke;
+    const letter = useLight ? s.dataset.lightLetter : s.dataset.darkLetter;
+    if (letter) {
+      s.classList.add('has-letter');
+      s.style.setProperty('--letter-color', letter);
+    } else {
+      s.classList.remove('has-letter');
+      s.style.removeProperty('--letter-color');
+    }
   });
 }
 
